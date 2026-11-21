@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import "./App.css";
 import { VIDEO_URL, postAction } from "./api";
+import { HazardPanel } from "./HazardPanel";
 import { useEchoGuideSocket } from "./useEchoGuideSocket";
-import { useSpeech } from "./useSpeech";
 
 function Indicator({ label, ok }: { label: string; ok: boolean }) {
   return (
@@ -12,24 +12,14 @@ function Indicator({ label, ok }: { label: string; ok: boolean }) {
   );
 }
 
-function Distance({ label, value }: { label: string; value: number | null }) {
-  return (
-    <div className="status-row">
-      <span className="status-label">{label}</span>
-      <span className="status-value">
-        {value === null ? "unknown" : `${Math.round(value)} cm`}
-      </span>
-    </div>
-  );
-}
-
+// P1 layout shell: camera feed + hazard panel + status. P2/P3 add their own
+// panel components (CameraPanel, SafetyPanel, ...) next to these.
 function App() {
   const { state, wsConnected } = useEchoGuideSocket();
-  const { enabled, enable, speakOnChange } = useSpeech();
 
   useEffect(() => {
-    speakOnChange(state.instruction_id, state.instruction);
-  }, [state.instruction_id, state.instruction, speakOnChange]);
+    document.title = state.warning ? `EchoGuide — ${state.warning}` : "EchoGuide";
+  }, [state.warning]);
 
   return (
     <div className="app">
@@ -39,74 +29,45 @@ function App() {
           <Indicator label="Server" ok={wsConnected} />
           <Indicator label="Camera" ok={state.camera_connected} />
           <Indicator label="Arduino" ok={state.arduino_connected} />
+          <span className="indicator">
+            Light: {state.light === null ? "unknown" : state.light}
+          </span>
         </div>
       </header>
 
       <main>
         <div className="video-pane">
           <img src={VIDEO_URL} alt="Camera feed" className="video-feed" />
-        </div>
-
-        <div className="status-pane">
           <div className="status-row">
             <span className="status-label">Mode</span>
             <span className="status-value">{state.mode}</span>
           </div>
-
-          <Distance label="Left" value={state.dist_left} />
-          <Distance label="Centre" value={state.dist_center} />
-          <Distance label="Right" value={state.dist_right} />
-
           <div className="status-row">
-            <span className="status-label">Camera aim</span>
-            <span className="status-value">
-              pan {state.pan} / tilt {state.tilt}
-              {state.scanning ? " (scanning)" : ""}
-            </span>
-          </div>
-
-          <div className="status-row">
-            <span className="status-label">Warning</span>
-            <span className="status-value status-warning">
-              {state.warning || "none"}
-            </span>
-          </div>
-
-          <div className="status-row">
-            <span className="status-label">Instruction</span>
+            <span className="status-label">Last spoken</span>
             <span className="status-value status-instruction">
               {state.instruction || "..."}
             </span>
           </div>
+        </div>
 
-          {state.sos_active && (
-            <div className="status-row sos-active">
-              <span className="status-label">SOS</span>
-              <span className="status-value">
-                {state.sos_status} — cancel within the window
-              </span>
-            </div>
-          )}
-
-          {!enabled && (
-            <button className="enable-audio" onClick={enable}>
-              Enable audio
-            </button>
-          )}
+        <div className="status-pane">
+          <HazardPanel hazards={state.hazards} warning={state.warning} />
 
           <div className="controls">
             <button onClick={() => postAction("DESCRIBE")}>Describe</button>
-            <button onClick={() => postAction("TOUCH_LONG")} className="sos">
+            <button onClick={() => postAction("READ_TEXT")}>Read text</button>
+            <button onClick={() => postAction("REPEAT")}>Repeat</button>
+            <button onClick={() => postAction("SOS")} className="sos">
               SOS
             </button>
             <button onClick={() => postAction("SOS_CANCEL")} className="cancel">
               Cancel SOS
             </button>
+            <button onClick={() => postAction("FIND_CANE")}>Find cane</button>
           </div>
 
           <p className="keyboard-hint">
-            Hardware: tap = describe · hold = SOS · tap during SOS window =
-            cancel
+            Test buttons mirror joystick/touch hardware actions.
           </p>
         </div>
       </main>

@@ -3,27 +3,16 @@ import { WS_URL, type SessionState } from "./api";
 
 const INITIAL_STATE: SessionState = {
   mode: "IDLE",
-  dist_left: null,
-  dist_center: null,
-  dist_right: null,
-  pan: 90,
-  tilt: 90,
-  scanning: false,
+  hazards: [],
   warning: "",
   warning_id: 0,
   warning_side: null,
   warning_urgent: false,
-  instruction: "",
-  instruction_id: 0,
-  sos_active: false,
-  sos_event_id: null,
-  sos_status: "",
-  sos_triggered_at: null,
-  last_description: "",
-  cane_drop_prompt: false,
-  recent_events: [],
+  light: null,
   camera_connected: false,
   arduino_connected: false,
+  instruction: "",
+  instruction_id: 0,
 };
 
 /** Subscribes to backend /ws state updates and reconnects if the socket drops. */
