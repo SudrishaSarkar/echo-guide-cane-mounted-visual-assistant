@@ -57,46 +57,51 @@ Commit these to `docs/contracts.md` so every teammate's Claude reads the same sp
 - D2/D3/D4 ultrasonic L/C/R, D5 touch, D6 button, D7 buzzer, D9/D10 servos
 - Servos get an external 5 V supply with a ground shared with the Arduino.
 
-## Split
+## Split: one feature per person, from sensor to screen
 
-### Person 1: hardware, firmware, physical build
-- Collect the MLH parts in hour 0. Check whether there's a Grove Base Shield; if not, get Grove-to-jumper cables.
-- `firmware/echoguide/echoguide.ino`:
-  - Read the ultrasonics one at a time (Grove ranger, single signal pin, about 30 ms per sensor).
-  - Joystick to servos with a deadzone and speed that scales with how far the stick is pushed; release holds the position. Software limits: pan 20–160°, tilt 40–130°.
-  - Tap vs 2 s hold detection, clap from a sound-level threshold, impact from acceleration magnitude above about 2.5 g.
-  - Handle the buzz/freeze/center commands and emit the JSON above.
-- Build the pan–tilt bracket: stack the tilt servo on the pan servo's horn and remove the webcam's clip to save weight. Clamp or strap the attachment to the cane, away from the grip and tip. Wire the power.
-- Calibrate distances against a tape measure and record thresholds for `settings.example.json`.
-- Write `docs/wiring.md` with the pin table and photos. Own the physical demo and the hardware photos for Devpost.
+Each person owns a complete feature: the parts and wiring, their firmware file, the backend module, and the dashboard panel.
 
-### Person 2: backend core (Python, FastAPI)
-- `serial_reader.py`: background thread with PySerial, parses lines, reconnects automatically. Also add **`backend/tools/fake_arduino.py`**, which replays fake JSON so Person 3 can work without hardware.
-- `config.py` (JSON settings, reusing the keys in `settings.example.json`), plus `state.py` (SessionState and WebSocket broadcast).
-- `warnings.py` (rename to `obstacle_warnings.py` to avoid clashing with Python's built-in `warnings`): distance → side and urgency. The beep interval shrinks as obstacles get closer.
-- `audio.py`: one audio manager. Stereo-panned Pygame beeps plus `pyttsx3` speech, with warnings taking priority and interrupting speech.
-- `detector.py` and `describer.py`: Ultralytics `yolo11n.pt`. On a tap: send `freeze`, grab a frame, detect, bucket objects into left/centre/right thirds, take the top 3, speak "A chair in the centre, a table on the right", then `unfreeze`. If the light reading is low, say "Too dark to describe."
-- `events.py`: SQLite event history. SOS state machine: triggered → cancel window → notified/failed/pending. Cane-drop check-in in `cane_drop.py`: impact, then about 10 s of no motion, then the prompt.
-- `main.py`: all the routes above and the startup threads. Update `requirements.txt` (`pyttsx3`, `httpx`).
+| | Person 1: Obstacles + find cane | Person 2: Camera + describe | Person 3: Safety + care app |
+|---|---|---|---|
+| **Parts** | 3× ultrasonic, sound sensor, buzzer | 2× servos, joystick, touch sensor, light sensor, webcam | Button, accelerometer |
+| **Physical build** | Forward-facing sensor bar, cane clamp, servo power supply | Pan–tilt camera mount | Control module beside the handle: joystick, touch and button, within thumb reach |
+| **Firmware file** | `obstacles.cpp/.h` + `echoguide.ino` (main loop, JSON out, command parsing) | `camera_ctrl.cpp/.h` | `safety.cpp/.h` |
+| **Backend** | `serial_reader.py`, `fake_arduino.py`, `config.py`, `state.py`, `main.py`, `obstacle_warnings.py`, `audio.py` | `camera.py` (exists), `detector.py`, `describer.py` | `events.py`, `cane_drop.py`, `notify.py`, `solana_log.py` |
+| **Frontend** | Distances, connection status, find-cane button | Live feed, pan/tilt, last description | SOS banner, incident log, map, profile, `/me` phone page |
+| **Extra role** | Integration of shared files (`.ino`, `main.py`, `api.ts`) | Demo video + calibration with P1 | Devpost write-up, merges to `main` |
 
-### Person 3: app, notifications, Solana, integration lead
-- `frontend/` caregiver view, with simple routes and no real authentication:
-  - live feed, the three distances, pan/tilt, connection status
-  - SOS banner with cancel and delivery status, incident log with "Verified on Solana" explorer links
-  - map with the recipient's location (Leaflet + OpenStreetMap, no API key)
-  - profile/care-notes page (`/api/profile`), seeded with fake data
-- Care-recipient view at `/me`, for the phone: large SOS and Find-my-cane buttons, plus location sharing via `navigator.geolocation.watchPosition` → `POST /api/location`.
-- `backend/app/notify.py`: Discord webhook for caregiver alerts (free, instant). Returns delivered/failed for `events.py`.
-- `backend/app/solana_log.py`: on each incident, send a devnet transaction using the **Memo program**. The memo holds `sha256(event json)` plus the event type and time, using the `solana` + `solders` libraries and a devnet keypair funded from the faucet. Store the transaction signature on the event, and the dashboard links to the Solana Explorer (devnet). It must not slow down SOS: run it in the background, and if it fails, just show "unverified".
-- Remote caregiver access through a Cloudflare Tunnel or ngrok, which also gives the phone the HTTPS it needs to share location.
-- Merges to `main` at each checkpoint, and drafts the Devpost write-up.
+### Avoid merge conflicts
+- **Firmware:** the Arduino IDE compiles every `.cpp`/`.h` file in `firmware/echoguide/` together. Each module exposes `xxxSetup()`, `xxxUpdate(Frame&)` and `xxxCommand(cmd)`. Only P1 edits `echoguide.ino`, which calls the three modules and prints the shared `Frame` struct as JSON.
+- **Backend:** P2 and P3 each put their routes in a FastAPI `APIRouter` inside their own module. P1's `main.py` just includes the routers. Everyone speaks through `audio.say(text)` and `audio.warn(side, urgency)` from `audio.py`.
+- **Frontend:** each person builds their panel as its own component (`ObstaclePanel.tsx`, `CameraPanel.tsx`, `SafetyPanel.tsx`, …). P1 places them in `App.tsx`, and P3 adds the `/me` and `/profile` routes.
+- **Hardware testing:** test your own sensors on a spare Arduino or the breadboard first, using the pins in `docs/contracts.md`. Move everything onto the single cane Arduino at checkpoint 1.
+
+### Person 1: obstacles + find cane (+ shared core)
+- **Hardware:** collect the MLH parts in hour 0 (check for a Grove Base Shield; if there isn't one, get Grove-to-jumper cables). Wire the 3 ultrasonics, sound sensor and buzzer. Build the forward-facing sensor bar and the removable clamp/strap, keeping them clear of the grip and tip. Set up the external 5 V servo supply with a shared ground.
+- **Firmware:** `obstacles.cpp`: read the ultrasonics one at a time (Grove single pin, about 30 ms each) and set `-1` when there's no echo. Clap detection gives a `clap` event; the buzz command drives the buzzer. `echoguide.ino`: main loop, the `Frame` struct, JSON output at 20 Hz, command parsing.
+- **Backend:** `serial_reader.py` (thread, auto-reconnect, sending commands); **`backend/tools/fake_arduino.py` by hour 3**; `config.py`; `state.py` (SessionState + WebSocket broadcast); `main.py`. `obstacle_warnings.py` (renamed from `warnings.py`): distance → side and urgency, with the beep interval shrinking as obstacles get closer. `audio.py`: Pygame stereo beeps + `pyttsx3` speech; warnings interrupt speech and only the latest speech request is kept. Find-cane: `FIND_CANE` → buzz for 5 s.
+- **Frontend:** obstacle panel (three distances, "unknown" shown as such, side highlight), connection status, find-cane button.
+- Calibrate the thresholds with a tape measure and record them in `settings.example.json`. Write `docs/wiring.md` with the pin table and photos.
+
+### Person 2: camera + describe
+- **Hardware:** wire the 2 servos (signal to D9/D10, power from P1's supply), joystick, touch and light sensors. Build the pan–tilt mount: stack the tilt servo on the pan servo's horn and remove the webcam's clip to cut weight. Test early whether tilt can hold the webcam; if not, do pan only.
+- **Firmware:** `camera_ctrl.cpp`: joystick to servos with a deadzone and speed that scales with how far the stick is pushed; release holds position. Limits: pan 20–160°, tilt 40–130°. Touch under 1 s gives a `tap` event. Handle `freeze`/`unfreeze`/`center`. Report `pan`, `tilt` and `light`.
+- **Backend:** `detector.py` loads Ultralytics `yolo11n.pt` once. `describer.py`: on `tap`/`DESCRIBE`, send `freeze`, grab a frame (`camera.py`), detect, bucket into left/centre/right thirds, take the top 3, then `audio.say("A chair in the centre, a table on the right")` and `unfreeze`. If light is low, say "Too dark to describe." Never narrate continuously.
+- **Frontend:** camera panel with the live `/video` feed, pan/tilt indicator, last description and a Describe button.
+- Remove the `useSpeech` call from `App.tsx`, because speech now comes from the backend.
+
+### Person 3: safety + care app
+- **Hardware:** wire the button and the accelerometer (I²C, A4/A5). Build the control module beside the handle (joystick, touch and button within thumb reach) and check the cane's weight and balance with everything on it.
+- **Firmware:** `safety.cpp`: button held ≥ 2 s gives `sos_hold`; acceleration magnitude above about 2.5 g gives `impact`. Report `button`, `ax`, `ay`, `az`.
+- **Backend:** `events.py`: SQLite history and the SOS state machine (triggered → cancel window → notified/failed/pending), with spoken confirmation via `audio.say`. `cane_drop.py`: impact, then about 10 s still, then "The cane may have been dropped. Do you need help?" `notify.py`: Discord webhook, returns delivered/failed. `solana_log.py`: one devnet **Memo** transaction per incident (`sha256` of the event, no personal data) using `solana` + `solders`, run in the background, storing the signature. Location and profile routes (`/api/location`, `/api/profile`).
+- **Frontend:** SOS banner with cancel and delivery status. Incident log with "Verified on Solana" Explorer links. Map with Leaflet + OpenStreetMap. Profile/care-notes page seeded with fake data. `/me` phone page with big SOS and Find-my-cane buttons and `navigator.geolocation.watchPosition`. Cloudflare Tunnel or ngrok for remote access and HTTPS.
 
 ## Timeline (hours from now)
 | Hours | All / milestone |
 |---|---|
 | 0–1 | Borrow hardware, commit `docs/contracts.md`, each person makes a branch |
-| 1–7 | Build in parallel. P2 ships `fake_arduino.py` by hour 3 so P3 isn't blocked |
-| **7** | **Checkpoint 1:** real Arduino → backend → dashboard shows live distances and pan/tilt; warnings beep |
+| 1–7 | Each person builds and tests their own sensors + firmware + backend module in parallel. P1 ships `fake_arduino.py` and a minimal `main.py`/`audio.py` by hour 3 so P2 and P3 can plug in |
+| **7** | **Checkpoint 1:** all sensors on one Arduino, firmware modules merged → backend → dashboard shows live distances and pan/tilt; warnings beep; joystick moves the camera |
 | 7–13 | Describe, SOS, cane drop, find cane, profile, location, Solana, Discord |
 | 13–17 | Staggered sleep, about 3 h each, with at least one person always awake |
 | **17** | **Checkpoint 2:** full demo flow works end-to-end on the mounted cane |
@@ -110,6 +115,7 @@ Stretch goals, only after checkpoint 2: ElevenLabs voice, custom alert rules, sh
 - Each person runs Claude Code in their own branch or worktree. Start with: "Read `docs/contracts.md` and this plan; implement Person N's section, starting with X."
 - Keep requests small: one module, then test it, then commit. Ask Claude to add a quick runnable check for each module, like `python -m app.describer test.jpg`.
 - Never let Claude change the contracts silently. Contract changes go through Person 3 and the team chat.
+- Tell Claude which files you own (see the split table) and to leave everyone else's files alone. Shared files (`echoguide.ino`, `main.py`, `App.tsx`) are edited only by P1.
 - Merge only at checkpoints, through Person 3. Don't put API keys, wallet keypairs or `settings.json` in git.
 
 ## Verification

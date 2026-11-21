@@ -90,3 +90,24 @@ Profile JSON:
 | D6 | Button (SOS) |
 | D7 | Buzzer |
 | D9 / D10 | Servo pan / tilt (signal only; power from external 5 V, shared GND) |
+
+## 7. Code ownership boundaries
+**Firmware** (`firmware/echoguide/`, all files compiled together by the Arduino IDE):
+```cpp
+struct Frame;                 // defined in echoguide.ino (P1); one field per JSON key in section 1
+void obstaclesSetup();  void obstaclesUpdate(Frame&);  bool obstaclesCommand(const String& cmd);   // P1
+void cameraSetup();     void cameraUpdate(Frame&);     bool cameraCommand(const String& cmd);      // P2
+void safetySetup();     void safetyUpdate(Frame&);     bool safetyCommand(const String& cmd);      // P3
+void emitEvent(const char* name);   // in echoguide.ino; prints {"type":"event","name":...}
+```
+`*Command` returns true if it handled the command.
+
+**Backend audio** (`backend/app/audio.py`, P1). The only way to make sound:
+```python
+audio.warn(side: "left"|"center"|"right", urgency: float)   # 0..1, interrupts speech
+audio.say(text: str)                                          # replaces any pending speech
+audio.chime(kind: "sos"|"ok"|"error")
+```
+
+**Backend routes:** P2 and P3 expose `router = APIRouter()` in their modules; `main.py` (P1) does `app.include_router(...)`.
+Hardware events reach them via `state.on_event(name, handler)` registered at startup.
