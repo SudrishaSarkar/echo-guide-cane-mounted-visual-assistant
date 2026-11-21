@@ -1,39 +1,25 @@
-# Wiring notes
+# Wiring notes (skeleton)
 
-Fill in once the exact Arduino, joystick, and touch-sensor models are
-confirmed. A model name/number or a clear photo of each module is enough to
-pin down the correct pins and voltage.
+To be filled in once exact component models are confirmed.
 
-## Components
+## Modules
 
-| Component | Model | Notes |
-|---|---|---|
-| Arduino board | TBD | |
-| Joystick | TBD (e.g. Grove Thumb Joystick) | |
-| Touch sensor | TBD | |
-| Base shield (if any) | TBD | |
+- Control module (beside handle): joystick, touch sensor / SOS button
+- Sensing module (below handle, facing forward): 3x ultrasonic sensors,
+  movable webcam on pan-tilt bracket, Arduino, Pi, power supply
 
 ## Connections
 
 | Connection | Pins | Notes |
 |---|---|---|
-| Arduino -> laptop | USB data cable | Must support data, not just charging |
-| Webcam -> laptop | USB | |
-| Joystick -> Arduino | 2 analog signals + power + ground | A0/A1 if using Grove Base Shield's A0 socket |
-| Touch sensor -> Arduino | 1 digital signal + power + ground | D2 in firmware/echoguide/echoguide.ino |
-
-Before connecting power, read each module's voltage and pin labels — do not
-assume 5V logic.
-
-Leave the light sensor and accelerometer disconnected until the main loop
-(joystick + touch -> Python -> guidance) works end-to-end.
+| Arduino -> laptop/Pi | USB data cable | |
+| Webcam -> Pi | USB | |
+| Joystick -> Arduino | 2 analog + power + gnd | |
+| Touch sensor -> Arduino | 1 digital + power + gnd | |
+| Ultrasonic x3 -> Arduino | trig/echo pairs + power + gnd | Trigger sequentially |
+| Servos x2 -> Arduino + supply | PWM signal + external PSU + common gnd | Do NOT power servos from Arduino 5V/GPIO |
+| Accelerometer -> Arduino | I2C (SDA/SCL) | |
 
 ## Serial format
 
-```json
-{"type":"input","seq":42,"joy_x":512,"joy_y":508,"touch":0}
-```
-
-ADC ranges are not assumed to be 0-1023 — `backend/app/serial_reader.py`
-calibrates the joystick centre from the first readings at startup rather than
-hardcoding it.
+See `firmware/guardian_cane/guardian_cane.ino` header comment.

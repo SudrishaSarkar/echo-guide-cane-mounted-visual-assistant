@@ -2,15 +2,19 @@
   "serial_port": "COM3",
   "baud_rate": 115200,
   "camera_index": 0,
+  "ultrasonic_warn_far_cm": 120.0,
+  "ultrasonic_warn_near_cm": 30.0,
+  "warning_interval_far_s": 4.0,
+  "warning_interval_near_s": 0.8,
   "joystick_deadzone": 60,
+  "joystick_scan_threshold": 120,
   "touch_long_press_ms": 600,
-  "detection_confidence": 0.5,
-  "supported_objects": [
-    "bottle",
-    "cup",
-    "cell phone"
-  ],
-  "near_target_radius": 0.12,
-  "instruction_persist_frames": 5,
-  "instruction_repeat_delay_s": 4.0
+  "sos_cancel_window_s": 15.0,
+  "detection_confidence": 0.4,
+  "max_describe_objects": 3,
+  "sos_webhook_url": "",
+  "sos_webhook_timeout_s": 5.0,
+  "cane_drop_enabled": false,
+  "cane_drop_impact_threshold": 2.5,
+  "cane_drop_inactivity_s": 10.0
 }

@@ -1,19 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { WS_URL, type SessionState } from "./api";
 
-const INITIAL_STATE: SessionState = {
-  mode: "IDLE",
-  selected_object: null,
-  target_visible: false,
-  hand_visible: false,
-  instruction: "",
-  instruction_id: 0,
-  camera_connected: false,
-  arduino_connected: false,
-};
+const INITIAL_STATE = {} as SessionState;
 
 /** Subscribes to backend /ws state updates and reconnects if the socket drops. */
-export function useEchoGuideSocket() {
+export function useGuardianSocket() {
   const [state, setState] = useState<SessionState>(INITIAL_STATE);
   const [wsConnected, setWsConnected] = useState(false);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

@@ -3,4 +3,5 @@ uvicorn[standard]
 pyserial
 opencv-python
 ultralytics
-mediapipe
+pygame
+numpy
