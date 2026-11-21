@@ -1,0 +1,275 @@
+/* Person 3: safety + care styles. */
+
+/* Keep every page (dashboard, profile) the same width, whatever its content. */
+.app {
+  width: 100%;
+  box-sizing: border-box;
+}
+.status-label {
+  white-space: nowrap;
+}
+
+.nav {
+  display: flex;
+  gap: 16px;
+}
+.nav a {
+  color: var(--text-h);
+  text-decoration: none;
+  padding-bottom: 2px;
+}
+.nav a[aria-current="page"] {
+  border-bottom: 2px solid var(--accent);
+}
+
+.care-grid {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.care-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.care-card h2 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text-h);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:disabled {
+  opacity: 0.6;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-danger {
+  background: #b3261e;
+  border-color: #b3261e;
+  color: #fff;
+}
+.btn-small {
+  padding: 2px 8px;
+  font-size: 13px;
+}
+
+.hint {
+  font-size: 13px;
+  opacity: 0.75;
+  margin: 0;
+}
+.warn {
+  color: #c77700;
+}
+.ok {
+  color: #2e9e5b;
+}
+.bad {
+  color: #d33;
+  font-weight: 600;
+}
+
+.sos-banner {
+  border: 2px solid #d33;
+  background: rgba(221, 51, 51, 0.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-h);
+  animation: sos-pulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes sos-pulse {
+  from { box-shadow: 0 0 0 0 rgba(221, 51, 51, 0.5); }
+  to { box-shadow: 0 0 0 6px rgba(221, 51, 51, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sos-banner { animation: none; }
+}
+
+.drop-banner {
+  border: 1px solid #e08a00;
+  background: rgba(224, 138, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-h);
+}
+
+.latest {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-h);
+}
+.latest-alert { background: rgba(221, 51, 51, 0.12); }
+.latest-warning { background: rgba(224, 138, 0, 0.12); }
+.latest-update { background: rgba(46, 158, 91, 0.12); }
+
+.incidents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.incidents li {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 2px 8px;
+  padding: 6px 8px;
+  border-left: 4px solid var(--border);
+  font-size: 14px;
+}
+.incidents li.sev-alert { border-left-color: #d33; }
+.incidents li.sev-warning { border-left-color: #e08a00; }
+.incidents li.sev-update { border-left-color: #2e9e5b; }
+.incidents .time {
+  opacity: 0.7;
+}
+.incidents .what {
+  color: var(--text-h);
+}
+.status {
+  margin-left: 8px;
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--code-bg);
+}
+.status-pending {
+  background: rgba(221, 51, 51, 0.15);
+}
+
+.map {
+  height: 260px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.activity-chart {
+  width: 100%;
+}
+.activity-chart .bar { fill: var(--accent); }
+.activity-chart .grid { stroke: var(--border); stroke-width: 1; }
+.activity-chart .axis { fill: currentColor; font-size: 9px; opacity: 0.7; }
+
+.profile fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  padding: 10px 12px;
+}
+.profile legend {
+  color: var(--text-h);
+  padding: 0 4px;
+}
+.profile label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+.profile .wide {
+  grid-column: 1 / -1;
+}
+.profile input,
+.profile textarea {
+  font: inherit;
+  font-size: 15px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+.list-row {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.list-row input {
+  flex: 1 1 140px;
+}
+
+/* /me phone page: large targets, high contrast. */
+.me {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+}
+.me h1 {
+  margin: 0;
+}
+.me-status {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-h);
+  min-height: 1em;
+}
+.me-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.me-btn {
+  width: 100%;
+  min-height: 96px;
+  border-radius: 16px;
+  border: 3px solid transparent;
+  font: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+}
+.me-btn:focus-visible {
+  outline: 4px solid var(--text-h);
+  outline-offset: 3px;
+}
+.me-sos { background: #b3261e; }
+.me-cancel { background: #444; }
+.me-find { background: #1d5fbf; }
+.me-start { background: #2e7d32; }
+.me-ok { background: #2e7d32; }

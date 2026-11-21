@@ -1,0 +1,4 @@
+# Copies of ../echoguide files for standalone testing; edit the originals.
+frame.h
+safety.h
+safety.cpp
