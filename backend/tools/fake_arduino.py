@@ -83,11 +83,19 @@ def _key_loop() -> None:
     print("fake_arduino ready — connect backend with serial_port='tcp:localhost:8765'")
     print("keys: u/d/l/r joy · p press · t tap · h hold · j release · b button · "
           "i impact · c clap · n loud · [ ] light · q quit")
+    stdin_open = True
     while True:
         try:
             key = input("> ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
+            # No stdin (background/pipe) — keep serving frames forever.
+            stdin_open = False
+            time.sleep(3600)
+            continue
+        except KeyboardInterrupt:
             break
+        if not stdin_open:
+            continue
         if key == "q":
             break
         if key in ("[", "]"):

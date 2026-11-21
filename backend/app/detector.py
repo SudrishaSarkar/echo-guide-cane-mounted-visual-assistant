@@ -17,7 +17,6 @@ from typing import List, Optional
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
 
 from .camera import camera
 from .config import settings
@@ -37,6 +36,8 @@ def _side(cx: float, width: int) -> str:
 
 class Detector:
     def __init__(self, model_path: str = "yolo11n.pt") -> None:
+        from ultralytics import YOLO  # lazy: backend must boot without it
+
         self.model = YOLO(model_path)
         self._thread: Optional[threading.Thread] = None
         self._running = False

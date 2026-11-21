@@ -34,7 +34,6 @@ class _TonePlayer:
 
             pygame.mixer.pre_init(_SAMPLE_RATE, -16, 2, 512)
             pygame.mixer.init()
-            sndarray.use("numpy")
             self._pygame = pygame
             self._sndarray = sndarray
             self._ok = True

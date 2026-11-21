@@ -105,6 +105,26 @@ def post_action(request: ActionRequest):
     return {"status": "ok"}
 
 
+class ArduinoCommand(BaseModel):
+    cmd: str
+    ms: int = 0
+    pattern: str = ""
+
+
+@app.post("/api/arduino")
+def arduino_command(request: ArduinoCommand):
+    """P1 debug/test endpoint: forward a raw command to the Arduino
+    (e.g. {"cmd":"beep","pattern":"ok"} or {"cmd":"buzz","ms":3000}).
+    P2/P3 features should use state.emit_event + their own handlers instead."""
+    payload = {"cmd": request.cmd}
+    if request.ms:
+        payload["ms"] = request.ms
+    if request.pattern:
+        payload["pattern"] = request.pattern
+    ok = serial_reader.send(payload)
+    return {"status": "ok" if ok else "offline"}
+
+
 @app.get("/video")
 def video():
     return StreamingResponse(
