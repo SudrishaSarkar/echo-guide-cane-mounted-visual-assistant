@@ -1,30 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { WS_URL, type SessionState } from "./api";
-
-const INITIAL_STATE: SessionState = {
-  mode: "IDLE",
-  dist_left: null,
-  dist_center: null,
-  dist_right: null,
-  pan: 90,
-  tilt: 90,
-  scanning: false,
-  warning: "",
-  warning_id: 0,
-  warning_side: null,
-  warning_urgent: false,
-  instruction: "",
-  instruction_id: 0,
-  sos_active: false,
-  sos_event_id: null,
-  sos_status: "",
-  sos_triggered_at: null,
-  last_description: "",
-  cane_drop_prompt: false,
-  recent_events: [],
-  camera_connected: false,
-  arduino_connected: false,
-};
+import { INITIAL_STATE, wsUrl, type SessionState } from "./api";
 
 /** Subscribes to backend /ws state updates and reconnects if the socket drops. */
 export function useEchoGuideSocket() {
@@ -37,9 +12,10 @@ export function useEchoGuideSocket() {
     let cancelled = false;
 
     const connect = () => {
-      socket = new WebSocket(WS_URL);
+      socket = new WebSocket(wsUrl());
       socket.onopen = () => setWsConnected(true);
-      socket.onmessage = (event) => setState(JSON.parse(event.data));
+      // Merge over the defaults so fields the backend doesn't send yet keep safe values.
+      socket.onmessage = (event) => setState({ ...INITIAL_STATE, ...JSON.parse(event.data) });
       socket.onclose = () => {
         setWsConnected(false);
         if (!cancelled) {
