@@ -1,1 +1,1 @@
-"""GuardianCane backend settings (serial, camera, obstacle thresholds, SOS)."""
+"""EchoGuide backend settings (serial, camera, obstacle thresholds, SOS)."""

@@ -104,3 +104,17 @@ main {
   opacity: 0.6;
   margin-top: 8px;
 }
+
+.status-warning {
+  color: #ffb84d;
+}
+
+.sos-active {
+  border: 1px solid #ff6b6b;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.controls .sos {
+  background: #7a1f1f;
+}

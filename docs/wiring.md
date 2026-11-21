@@ -22,4 +22,4 @@ To be filled in once exact component models are confirmed.
 
 ## Serial format
 
-See `firmware/guardian_cane/guardian_cane.ino` header comment.
+See `firmware/echoguide/echoguide.ino` header comment.

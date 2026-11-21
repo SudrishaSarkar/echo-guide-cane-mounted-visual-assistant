@@ -1,4 +1,4 @@
-# GuardianCane
+# EchoGuide
 
 A detachable smart cane attachment that detects nearby obstacles, gives
 directional audio warnings, and lets the user move a camera with a joystick
@@ -27,11 +27,11 @@ frontend/              # React + TypeScript + Vite caregiver dashboard
   src/
     App.tsx
     api.ts
-    useGuardianSocket.ts
+    useEchoGuideSocket.ts
     useSpeech.ts
 firmware/
-  guardian_cane/
-    guardian_cane.ino  # Sensors + joystick->servos + touch + accel -> serial JSON
+  echoguide/
+    echoguide.ino  # Sensors + joystick->servos + touch + accel -> serial JSON
 docs/
   wiring.md
   demo.md

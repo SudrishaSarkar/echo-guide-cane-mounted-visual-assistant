@@ -1,5 +1,5 @@
 /*
- * GuardianCane firmware (skeleton).
+ * EchoGuide firmware (skeleton).
  *
  * Responsibilities:
  *  - Read 3 ultrasonic sensors (left / centre / right), triggered sequentially
