@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+node_modules/
+dist/
+.env
+*.pt
+*.task
+backend/settings.json

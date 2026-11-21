@@ -1,0 +1,106 @@
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 24px 40px;
+  text-align: left;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--border, #333);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.indicators {
+  display: flex;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.indicator-ok {
+  color: #3ddc84;
+}
+
+.indicator-bad {
+  color: #ff6b6b;
+}
+
+main {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.video-pane {
+  flex: 1 1 480px;
+  min-width: 320px;
+}
+
+.video-feed {
+  width: 100%;
+  border-radius: 8px;
+  background: #111;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.status-pane {
+  flex: 1 1 320px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+}
+
+.status-label {
+  opacity: 0.7;
+}
+
+.status-value {
+  font-weight: 600;
+}
+
+.status-instruction {
+  font-size: 18px;
+}
+
+.enable-audio {
+  margin-top: 8px;
+  padding: 10px 16px;
+  font-size: 15px;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.controls button {
+  padding: 10px;
+}
+
+.controls .cancel {
+  grid-column: span 2;
+  background: #4a1f1f;
+}
+
+.keyboard-hint {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 8px;
+}

@@ -1,0 +1,16 @@
+{
+  "serial_port": "COM3",
+  "baud_rate": 115200,
+  "camera_index": 0,
+  "joystick_deadzone": 60,
+  "touch_long_press_ms": 600,
+  "detection_confidence": 0.5,
+  "supported_objects": [
+    "bottle",
+    "cup",
+    "cell phone"
+  ],
+  "near_target_radius": 0.12,
+  "instruction_persist_frames": 5,
+  "instruction_repeat_delay_s": 4.0
+}
