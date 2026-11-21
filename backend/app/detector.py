@@ -62,7 +62,10 @@ class Detector:
 
             height, width = frame.shape[:2]
             results = self.model.predict(
-                frame, conf=settings.detection_confidence, verbose=False
+                frame,
+                conf=settings.detection_confidence,
+                imgsz=settings.detector_imgsz,
+                verbose=False,
             )[0]
 
             detections: List[dict] = []

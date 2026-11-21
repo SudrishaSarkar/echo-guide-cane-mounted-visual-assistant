@@ -31,6 +31,7 @@ class Settings:
 
     detection_confidence: float = 0.35
     detector_fps: float = 5.0
+    detector_imgsz: int = 960
     hazard_poll_hz: float = 10.0
 
     # Hazard heuristics (fractions of frame size)

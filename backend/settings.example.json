@@ -4,6 +4,7 @@
   "camera_index": 0,
   "detection_confidence": 0.35,
   "detector_fps": 5.0,
+  "detector_imgsz": 960,
   "hazard_poll_hz": 10.0,
   "hazard_close_box_height_frac": 0.45,
   "hazard_close_bottom_frac": 0.15,

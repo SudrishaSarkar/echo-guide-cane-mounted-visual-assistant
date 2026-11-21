@@ -28,6 +28,10 @@ class Camera:
 
     def open(self) -> bool:
         self._cap = cv2.VideoCapture(settings.camera_index)
+        # 720p gives the detector noticeably better small-object accuracy;
+        # still cheap enough for ~5 fps YOLO on CPU.
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         ok = self._cap.isOpened()
         state_manager.update(camera_connected=ok)
         if ok:
