@@ -53,6 +53,18 @@ class _TonePlayer:
         right = (wave * right_gain).astype(np.int16)
         return np.stack([left, right], axis=1)
 
+    @staticmethod
+    def _render_sequence(beeps: list, gap: float = 0.06) -> np.ndarray:
+        """beeps: [(freq, seconds, pan), ...] -> one buffer with gaps."""
+        parts = []
+        gap_samples = int(_SAMPLE_RATE * gap)
+        silence = np.zeros((gap_samples, 2), dtype=np.int16)
+        for i, (freq, seconds, pan) in enumerate(beeps):
+            if i:
+                parts.append(silence)
+            parts.append(_TonePlayer._render(freq, seconds, pan))
+        return np.concatenate(parts, axis=0) if parts else np.zeros((1, 2), dtype=np.int16)
+
     def play(self, freq: float, seconds: float = _BEEP_SECONDS, pan: float = 0.0) -> None:
         if not self._ok:
             return
@@ -60,6 +72,19 @@ class _TonePlayer:
             sound = self._sndarray.make_sound(self._render(freq, seconds, pan))
             sound.play()
             self._sounds.append(sound)  # keep ref until played out
+            if len(self._sounds) > 32:
+                self._sounds = self._sounds[-16:]
+        except Exception:
+            pass
+
+    def play_sequence(self, beeps: list) -> None:
+        """beeps: [(freq, seconds, pan), ...] played back-to-back with gaps."""
+        if not self._ok or not beeps:
+            return
+        try:
+            sound = self._sndarray.make_sound(self._render_sequence(beeps))
+            sound.play()
+            self._sounds.append(sound)
             if len(self._sounds) > 32:
                 self._sounds = self._sounds[-16:]
         except Exception:
@@ -183,16 +208,24 @@ class AudioOut:
         self._speaker = _Speaker(settings.tts_enabled)
         self._warn_lock = threading.Lock()
 
-    # --- warnings: rate 2..6 Hz and pitch 500..1400 Hz scale with urgency ---
+    # --- 3-level urgency beeps ---
+    # urgency 0..1 (from box size/area, ~closeness). Levels:
+    #   L1 <0.35  : single low beep
+    #   L2 0.35-0.7: double beep, mid pitch
+    #   L3 >0.7   : rapid triple beep, high pitch (imminent)
     def warn(self, side: str, urgency: float) -> None:
         urgency = max(0.0, min(1.0, urgency))
-        freq = 500.0 + urgency * 900.0
-        seconds = 0.08 + urgency * 0.12
         pan = {"left": -0.8, "center": 0.0, "right": 0.8}.get(side, 0.0)
         # Interrupt speech while an alert sounds.
         self._speaker.interrupt()
         with self._warn_lock:
-            self._tones.play(freq, seconds, pan)
+            if urgency < 0.35:
+                beeps = [(440.0, 0.09, pan)]
+            elif urgency < 0.7:
+                beeps = [(660.0, 0.09, pan), (660.0, 0.09, pan)]
+            else:
+                beeps = [(880.0, 0.12, pan), (880.0, 0.12, pan), (880.0, 0.12, pan)]
+            self._tones.play_sequence(beeps)
 
     def say(self, text: str) -> None:
         self._speaker.say(text)

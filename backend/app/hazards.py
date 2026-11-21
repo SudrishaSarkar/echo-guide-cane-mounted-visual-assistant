@@ -109,8 +109,10 @@ class HazardMonitor:
             if is_close or approaching:
                 hazards.append(hazard)
 
-            # Alert with per-side cooldown.
-            due = now - self._last_alert[side] >= settings.hazard_cooldown_s
+            # Alert with per-side cooldown that shrinks with urgency:
+            # far objects beep ~every cooldown_s, imminent ones ~4x faster.
+            interval = settings.hazard_cooldown_s * (1.0 - 0.75 * urgency)
+            due = now - self._last_alert[side] >= interval
             if (is_close or approaching) and due:
                 self._last_alert[side] = now
                 audio.warn(side, urgency)
