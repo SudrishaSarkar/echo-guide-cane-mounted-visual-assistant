@@ -290,9 +290,9 @@ class InstantFallTests(DropTestCase):
         super().setUp()
         self.d = CaneDropDetector(DropConfig(instant_sos=True), clock=self.clock)
 
-    def test_impact_sends_everything_at_once(self) -> None:
+    def test_hard_impact_sends_everything_at_once(self) -> None:
         self.hold(UPRIGHT, 1)
-        self.d.on_impact()  # no waiting, no further frames
+        self.d.on_hard_impact()  # no waiting, no further frames
         self.assertEqual(self.d.state, ALERTED)
         self.assertTrue(events.sos_open())
         fall = get_db().list_events()[0]
@@ -306,12 +306,21 @@ class InstantFallTests(DropTestCase):
         self.assertEqual(self.spoken()[-1], cane_drop.FALL_SPOKEN)
 
     def test_second_impact_does_not_stack(self) -> None:
-        self.d.on_impact()
-        self.d.on_impact()
+        self.d.on_hard_impact()
+        self.d.on_hard_impact()
         self.assertEqual(self.types().count("SOS"), 1)
 
+    def test_soft_jolt_is_not_an_instant_sos(self) -> None:
+        self.hold(UPRIGHT, 1)
+        self.d.on_impact()  # handling bump: no pinned axis
+        self.assertEqual(self.d.state, WATCHING)
+        self.assertFalse(events.sos_open())
+        self.hold(UPRIGHT, 4)  # stays upright -> just a bump
+        self.assertEqual(self.d.state, IDLE)
+        self.assertEqual(self.types(), [])
+
     def test_picking_cane_up_does_not_clear_it(self) -> None:
-        self.d.on_impact()
+        self.d.on_hard_impact()
         self.hold(UPRIGHT, 2)
         self.assertEqual(self.d.state, ALERTED)
         self.assertTrue(self.d.respond_ok("touch"))

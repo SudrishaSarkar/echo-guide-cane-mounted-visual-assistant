@@ -173,6 +173,10 @@ void updateAccel(Frame& frame, unsigned long now) {
 
   if ((saturated || jumped) && now - lastImpactMs >= IMPACT_COOLDOWN_MS) {
     lastImpactMs = now;
+    // An axis pinned at the sensor's limit means a real hit (a thrown or
+    // dropped cane hitting the floor). Handling jolts usually only "jump".
+    // The backend sends an instant fall SOS for hard_impact only.
+    if (saturated) emitEvent("hard_impact");
     emitEvent("impact");
   }
 

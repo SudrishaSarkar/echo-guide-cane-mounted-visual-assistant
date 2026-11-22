@@ -181,8 +181,8 @@ Tuning in `backend/settings.json`: `beep_single_at` (0.45), `beep_double_at`
 |---|---|---|
 | C1 | Joystick **up** | Same as the Describe button (B3) |
 | C2 | Joystick **down** at a page | Same as the Read text button (B2), spoken aloud |
-| C3 | Joystick **left** | Describes **only the left third** of the frame |
-| C4 | Joystick **right** | Describes **only the right third** |
+| C3 | Joystick **left** | Describes **only the left third**, and says so: "A person on the left." |
+| C4 | Joystick **right** | Describes **only the right third**, and says so: "Four chairs on the right." |
 | C5 | Joystick **press** right after C2 | Repeats the text just read |
 | C6 | Press before anything has been said | "Nothing to repeat yet." |
 | C7 | **Tap** touch (no SOS, no drop prompt) | Describes the scene (same as up) |
@@ -211,21 +211,35 @@ notifications until you click).
 | D1.7 | Push button held 2 s (if fitted) | SOS sent immediately, no countdown |
 | D1.8 | Dashboard **Cancel SOS** | Same as D1.4 |
 
-### D2. Cane drop (accelerometer)
-For a bench test, "upright" means the `cane_axis` axis points up. With
-`cane_axis: "z"`, the board **flat on the table counts as upright**, and the
-board **on its edge** counts as lying down.
+### D2. Falls and impacts (accelerometer)
 
-| # | Do | Expect |
-|---|---|---|
-| D2.1 | Tap the table hard (impact), then set the board on its edge and leave it **still** | About 10 s later: "The cane may have been dropped. Tap if you're OK, or hold for help." The buzzer plays find beeps. The dashboard shows a drop prompt |
-| D2.2 | During the prompt, **tap** touch | "OK, glad you're all right.", beeps stop |
-| D2.3 | Repeat D2.1, but during the prompt **hold** touch | SOS sent straight away (no 3 s countdown) |
-| D2.4 | Repeat D2.1 and answer nothing | Question repeated at ~15 s. At ~30 s: "I've let your caregiver know the cane may have been dropped.", plus a dashboard alert |
-| D2.5 | After D2.4, tap touch | "OK. I've told your caregiver you're all right." |
-| D2.6 | Impact, then put it back "upright" within 3 s | **No** prompt |
-| D2.7 | Lay it on its edge **without** an impact first | **No** prompt (a drop needs an impact) |
-| D2.8 | Impact, lay it on its edge but keep jiggling it | **No** prompt while it's moving |
+**How it works now.** The Uno sends two kinds of impact:
+- `hard_impact`: an axis pinned at the sensor limit (about 1.4 g or more), i.e. a real hit such as the cane hitting the floor. **Instant**: buzzer alarm (30 s), SOS to the caregiver and a logged fall incident, all in the same moment.
+- `impact` only: a smaller jolt (handling, joystick use, a bump). **No instant SOS.** It only escalates if the cane then lies still for `cane_drop_inactivity_s` (5 s demo / 10 s default) **and** nobody answers "Are you OK?" within `cane_drop_response_s` (5 s demo / 20 s default).
+
+One **tap** on the touch sensor cancels everything (SOS cancelled, fall resolved, buzzer stops). Picking the cane up does **not** cancel an instant fall alert.
+
+**Setup.** Backend + dashboard running, **Enable alerts** clicked. Watch the backend log for `[arduino] event hard_impact` / `[arduino] event impact`.
+With `cane_axis: "z"`: board **flat** = cane upright, board **on its edge** = cane lying down.
+
+| # | Do | Expect (hear / see) | Log shows |
+|---|---|---|---|
+| D2.1 | Use the joystick normally for 1 min: all 4 flicks + clicks | Descriptions only. **No** beeping, **no** SOS | joystick events; maybe `impact`, **never** `hard_impact` |
+| D2.2 | Pick the board up, turn it, put it down normally | Nothing | at most `impact` |
+| D2.3 | Tap the table firmly next to the board | Nothing (board stays upright) | maybe `impact` |
+| D2.4 | **Throw / drop the board onto the floor** | **Instantly**: loud buzzer, "Fall detected. SOS sent to your caregiver. Tap if you're OK.", SOS banner, **"Fall detected: no response, SOS sent"** in Incidents with date/time | `hard_impact` then `impact` |
+| D2.5 | After D2.4, **tap** touch once | "SOS cancelled…", buzzer stops; dashboard shows "SOS cancelled (false alarm)" + "Cane drop resolved" | `tap` |
+| D2.6 | After D2.4, pick the board up instead of tapping | Alert **stays** (a bystander picking it up doesn't mean the person is OK) | – |
+| D2.7 | Throw it again while an alert is still active | **No** second SOS | `hard_impact` |
+| D2.8 | Bump the board (soft `impact`), then lay it on its edge and leave it still | After ~5 s: "The cane may have been dropped. Tap if you're OK, or hold for help." + find beeps. After ~5 s more with no answer: alarm + SOS + fall incident | `impact` only |
+| D2.9 | As D2.8, but **tap** at the question | "OK, glad you're all right." No SOS | `tap` |
+| D2.10 | As D2.8, but **hold** touch at the question | SOS sent immediately (no 3-2-1 countdown) | `hold_start` |
+| D2.11 | No hardware: `curl -X POST http://127.0.0.1:8000/action -H "content-type: application/json" -d "{\"action\":\"SIMULATE_FALL\"}"` | Same as D2.4 (sends a `hard_impact`) | – |
+
+**If something's wrong:**
+- D2.1–D2.3 sends an SOS → the log shows `hard_impact` from handling. Raise `SATURATED_COUNTS` in `firmware/echoguide/safety.cpp` (30 → 31) or mount the board more softly.
+- D2.4 only shows `impact` (no `hard_impact`) → the throw wasn't hard enough to pin an axis. Throw harder, or lower `SATURATED_COUNTS` (30 → 28). D2.8's check-in still catches it.
+- To go back to "always ask first", set `"fall_instant_sos": false` in `backend/settings.json`.
 
 ### D3. Find my cane
 | # | Do | Expect |

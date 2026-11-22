@@ -19,6 +19,7 @@ and never interrupt speech; narrator.py does the talking. Publishes `hazards`
 """
 from __future__ import annotations
 
+import math
 import threading
 import time
 from collections import defaultdict
@@ -28,6 +29,34 @@ from . import detector
 from .audio import audio
 from .config import settings
 from .state import state_manager
+
+
+# Typical real heights (metres) for distance estimates from box height.
+TYPICAL_HEIGHT_M = {
+    "person": 1.7, "chair": 0.9, "couch": 0.85, "bench": 0.8, "dining table": 0.75,
+    "bed": 0.6, "bicycle": 1.0, "motorcycle": 1.1, "car": 1.5, "truck": 3.0, "bus": 3.0,
+    "dog": 0.55, "cat": 0.3, "suitcase": 0.65, "backpack": 0.5, "handbag": 0.3,
+    "potted plant": 0.6, "vase": 0.3, "bottle": 0.25, "cup": 0.12, "bowl": 0.08,
+    "laptop": 0.25, "tv": 0.6, "fire hydrant": 0.8, "stop sign": 0.75, "toilet": 0.75,
+    "refrigerator": 1.7, "parking meter": 1.3,
+}
+
+
+def estimate_distance_m(det: dict, frame_h: int) -> Optional[float]:
+    """Rough distance from the camera (pinhole model): real height x focal
+    length / box height. None when the object type is unknown or the box is
+    cut off at the top/bottom edge (the visible part is then too short and the
+    estimate would come out too far, which is the unsafe direction)."""
+    real = TYPICAL_HEIGHT_M.get(det["label"])
+    x1, y1, x2, y2 = det["box"]
+    box_h = y2 - y1
+    if real is None or box_h <= 1:
+        return None
+    edge = 0.02 * frame_h
+    if y1 <= edge or y2 >= frame_h - edge:
+        return None
+    focal = (frame_h / 2) / math.tan(math.radians(settings.camera_vfov_deg) / 2)
+    return real * focal / box_h
 
 
 def _box_metrics(det: dict, width: int, height: int) -> dict:
@@ -50,6 +79,9 @@ class HazardMonitor:
         self._beep_level = 0       # 0 silence, 1 single, 2 double, 3 continuous
         self._beep_side = "center"
         self._beep_thread: Optional[threading.Thread] = None
+        self.nearest: Optional[dict] = None  # read by narrator.py
+        # Recent raw levels (one per poll) so one-frame detections don't beep.
+        self._level_history: List[int] = []
 
     def start(self) -> None:
         self._running = True
@@ -82,8 +114,7 @@ class HazardMonitor:
 
         now = time.monotonic()
         hazards: List[dict] = []
-        nearest_urgency = 0.0
-        nearest_side = "center"
+        nearest: Optional[dict] = None
 
         for side in ("left", "center", "right"):
             side_dets = [d for d in detections if d["side"] == side]
@@ -114,24 +145,36 @@ class HazardMonitor:
                 approaching = growth >= 0.25 and area >= 0.02
 
             urgency = min(1.0, max(m["box_h"] * 1.2, area * 4.0))
+            distance = estimate_distance_m(best, height)
+            level = max(self._level_for(urgency), self._level_for_distance(distance))
             hazard = {
                 "label": best["label"],
                 "side": side,
                 "closeness": round(min(1.0, m["box_h"] * 1.5), 2),
                 "approaching": approaching,
+                "distance_m": round(distance, 1) if distance is not None else None,
+                "level": level,
             }
-            if is_close or approaching:
+            if is_close or approaching or level > 0:
                 hazards.append(hazard)
 
-            if urgency > nearest_urgency:
-                nearest_urgency, nearest_side = urgency, side
+            # Nearest = highest level; ties go to the centre (in your path),
+            # then the shorter distance.
+            rank = (level, side == "center", -(distance if distance is not None else 99.0))
+            if level > 0 and (nearest is None or rank > nearest["_rank"]):
+                nearest = dict(hazard, _rank=rank)
             self._active[side] = hazard
 
-        level = self._level_for(nearest_urgency)
+        raw_level = nearest["level"] if nearest else 0
+        level = self._steady_level(raw_level)
+        if nearest is not None and level != nearest["level"]:
+            nearest = dict(nearest, level=level) if level > 0 else None
         with self._beep_lock:
             raised = level > self._beep_level
             self._beep_level = level
-            self._beep_side = nearest_side
+            self._beep_side = nearest["side"] if nearest else "center"
+            self.nearest = ({k: v for k, v in nearest.items() if k != "_rank"}
+                            if nearest else None)
         warned = raised and level > 0
 
         state_manager.update(
@@ -147,6 +190,41 @@ class HazardMonitor:
         h = hazards[0]
         where = {"left": "on your left", "center": "ahead", "right": "on your right"}[h["side"]]
         return f"{h['label'].capitalize()} {where}"
+
+    STEADY_WINDOW = 5  # polls (~0.5 s at 10 Hz)
+    STEADY_MIN = 3     # a level must show up in this many of them
+
+    def _steady_level(self, raw_level: int) -> int:
+        """Highest level seen in at least STEADY_MIN of the last STEADY_WINDOW
+        polls: a hazard has to last ~0.3 s before it beeps, and a one-frame
+        dropout doesn't silence a real one."""
+        hist = self._level_history
+        hist.append(raw_level)
+        del hist[:-self.STEADY_WINDOW]
+        for level in (3, 2, 1):
+            if sum(1 for v in hist if v >= level) >= self.STEADY_MIN:
+                return level
+        return 0
+
+    @staticmethod
+    def _level_for_distance(distance: Optional[float]) -> int:
+        if distance is None:
+            return 0
+        if distance <= settings.beep_continuous_m:
+            return 3
+        if distance <= settings.beep_double_m:
+            return 2
+        if distance <= settings.beep_single_m:
+            return 1
+        return 0
+
+    @staticmethod
+    def _joystick_busy() -> bool:
+        """The user asked something with the joystick and the answer is being
+        worked out or spoken. Joystick use is the 'safe' mode: no beeps."""
+        from .state import Mode
+        mode = state_manager.state.mode
+        return mode in (Mode.DESCRIBING, Mode.READING) or audio.priority_speaking()
 
     @staticmethod
     def _level_for(urgency: float) -> int:
@@ -165,6 +243,10 @@ class HazardMonitor:
         while self._running:
             with self._beep_lock:
                 level, side = self._beep_level, self._beep_side
+            # Joystick answers play without beeps; only "very close" (3)
+            # still beeps, because that is a real danger.
+            if level < 3 and self._joystick_busy():
+                level = 0
             if level == 0:
                 time.sleep(0.05)
                 continue

@@ -1,4 +1,19 @@
-"""Continuous scene narration: keeps telling the user what the camera sees.
+"""What the webcam says on its own (no joystick needed).
+
+Default mode "hazards" (settings.narration_mode): the webcam only speaks about
+obstacles that are getting close, using the nearest hazard from hazards.py,
+with a rough distance and stress words that rise with the danger:
+
+    level 1  "Chair ahead, about 2 metres."
+    level 2  "Careful! Chair ahead, 1 metre."
+    level 3  "Stop! Chair right in front of you."   (interrupts anything)
+
+Levels 1-2 wait while a joystick answer is playing (joystick = calm, safe
+mode). Level 3 always speaks, even over the joystick. It never says the path
+is clear: with no hazard it stays quiet.
+
+Mode "all" keeps the older always-on narration described below.
+
 
 Every ~0.2 s it reads detector.latest_detections, keeps only objects that have
 been seen steadily (in at least 3 of the last 4 samples, so a one-frame
@@ -55,6 +70,11 @@ class Narrator:
         self._last_text = ""
         self._last_spoken_at = 0.0
         self._quiet_since = 0.0
+        # hazard mode
+        self._hz_candidate: Optional[tuple] = None
+        self._hz_seen = 0
+        self._hz_last_key: Optional[tuple] = None
+        self._hz_last_at = 0.0
 
     def start(self) -> None:
         if not getattr(settings, "narration_enabled", True):
@@ -76,6 +96,9 @@ class Narrator:
             time.sleep(SAMPLE_PERIOD_S)
 
     def _tick(self) -> None:
+        if getattr(settings, "narration_mode", "hazards") == "hazards":
+            self._tick_hazards()
+            return
         sample, close = self._sample()
         self._history.append(sample)
 
@@ -97,6 +120,49 @@ class Narrator:
         if audio.narrate(text):
             self._last_text = text
             self._last_spoken_at = now
+            state_manager.set_instruction(text)
+
+    # --- hazard mode ---
+    HAZARD_REPEAT_S = {1: 6.0, 2: 3.5, 3: 2.0}
+    HAZARD_STEADY_TICKS = 2  # ~0.3 s: ignore one-frame misdetections
+
+    def _tick_hazards(self) -> None:
+        from .hazards import hazard_monitor
+
+        h = hazard_monitor.nearest
+        now = time.monotonic()
+        if not h or h.get("level", 0) <= 0:
+            self._hz_candidate, self._hz_seen = None, 0
+            self._hz_last_key = None  # next hazard is announced straight away
+            return
+
+        key = (h["label"], h["side"], h["level"])
+        if key == self._hz_candidate:
+            self._hz_seen += 1
+        else:
+            self._hz_candidate, self._hz_seen = key, 1
+        if self._hz_seen < self.HAZARD_STEADY_TICKS:
+            return
+
+        level = h["level"]
+        changed = key != self._hz_last_key
+        rose = self._hz_last_key is None or level > self._hz_last_key[2]
+        due = now - self._hz_last_at >= self.HAZARD_REPEAT_S.get(level, 4.0)
+        if not (changed or due):
+            return
+
+        text = hazard_sentence(h["label"], h["side"], level, h.get("distance_m"))
+        if level >= 3:
+            # Real danger: speak now, over anything (even a joystick answer).
+            audio.say(text)
+            spoken = True
+        else:
+            if self._paused() or audio.priority_speaking():
+                return  # joystick answer / SOS / prompt playing: wait
+            spoken = audio.narrate(text)
+        if spoken:
+            self._hz_last_key = key
+            self._hz_last_at = now
             state_manager.set_instruction(text)
 
     # --- helpers ---
@@ -155,6 +221,33 @@ class Narrator:
                 phrase += ", close"
             parts.append(phrase + ".")
         return " ".join(parts)
+
+
+def say_distance(distance_m: Optional[float]) -> str:
+    """'about 2 metres', 'about 1.5 metres', 'about 1 metre', or ''."""
+    if distance_m is None or distance_m < 0.75:
+        return ""
+    if distance_m < 3:
+        d = round(distance_m * 2) / 2
+    else:
+        d = float(round(distance_m))
+    num = str(int(d)) if d == int(d) else f"{d:g}"
+    unit = "metre" if d == 1 else "metres"
+    return f"about {num} {unit}"
+
+
+def hazard_sentence(label: str, side: str, level: int, distance_m: Optional[float]) -> str:
+    """Words get more urgent with the level so the user stops in time."""
+    noun = label[0].upper() + label[1:]
+    where = _WHERE.get(side, "ahead")
+    dist = say_distance(distance_m)
+    if level >= 3:
+        if side == "center":
+            return f"Stop! {noun} right in front of you."
+        return f"Watch out! {noun} very close {where}."
+    if level == 2:
+        return f"Careful! {noun} {where}, {dist}." if dist else f"Careful! {noun} close {where}."
+    return f"{noun} {where}, {dist}." if dist else f"{noun} {where}."
 
 
 narrator = Narrator()

@@ -53,7 +53,13 @@ def describe(focus: str = "all", detections: Optional[List[dict]] = None,
 
     phrases = [_phrase(label, side, count, focus)
                for (label, side), count in list(groups.items())[:MAX_OBJECTS]]
-    sentence = ", ".join(phrases)
+    if focus in ("left", "right"):
+        # One side only: name the side once at the end.
+        # "Two chairs, a couch and a bottle on the left."
+        listed = phrases[0] if len(phrases) == 1 else ", ".join(phrases[:-1]) + " and " + phrases[-1]
+        sentence = f"{listed} {_SIDE_PHRASES[focus]}"
+    else:
+        sentence = ", ".join(phrases)
     return sentence[0].upper() + sentence[1:] + "."
 
 
@@ -70,7 +76,7 @@ def _phrase(label: str, side: str, count: int, focus: str) -> str:
         plural = _IRREGULAR_PLURALS.get(label, label + "s")
         noun = f"{_NUMBER_WORDS.get(count, str(count)).lower()} {plural}"
     if focus in ("left", "right"):
-        return noun
+        return noun  # the side is added once for the whole sentence
     return f"{noun} {_SIDE_PHRASES.get(side, '')}".strip()
 
 

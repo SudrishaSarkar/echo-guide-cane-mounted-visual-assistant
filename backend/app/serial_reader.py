@@ -141,6 +141,7 @@ class SerialReader:
             elif ptype == "event":
                 name = payload.get("name")
                 if name:
+                    print(f"[arduino] event {name}", flush=True)
                     state_manager.emit_event(name)
 
     def _handle_input(self, payload: dict) -> None:

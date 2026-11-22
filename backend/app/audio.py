@@ -163,6 +163,13 @@ class _Speaker:
         with self._cond:
             return self._speaking or self._pending is not None
 
+    def priority_busy(self) -> bool:
+        """An important message (not narration) is playing or waiting."""
+        with self._cond:
+            playing = self._speaking and not self._narrating
+            waiting = self._pending is not None and not self._pending_narration
+            return playing or waiting
+
     def interrupt(self) -> None:
         if self._enabled:
             self._push("", narration=False)
@@ -294,6 +301,9 @@ class AudioOut:
 
     def speaking(self) -> bool:
         return self._speaker.busy()
+
+    def priority_speaking(self) -> bool:
+        return self._speaker.priority_busy()
 
     def chime(self, kind: str) -> None:
         self._tones.pattern(kind)

@@ -36,7 +36,7 @@ _ACTION_TO_EVENT = {
     "FIND_CANE": "find_cane",
     "DROP_OK": "drop_ok",
     "DROP_HELP": "drop_help",
-    "SIMULATE_FALL": "impact",  # test/demo: same event the Uno sends on a hard hit
+    "SIMULATE_FALL": "hard_impact",  # test/demo: same event the Uno sends on a hard hit
 }
 
 # Modules owned by P2/P3 that may expose `router = APIRouter()`.

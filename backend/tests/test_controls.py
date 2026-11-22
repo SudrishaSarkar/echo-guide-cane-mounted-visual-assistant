@@ -81,7 +81,7 @@ def test_joy_left_right_set_focus(env):
 
 def test_joy_down_reads_text(env):
     state_manager.emit_event("joy_down")
-    assert wait_for(lambda: env["said"] == ["Aspirin 500 mg"])
+    assert wait_for(lambda: env["said"] == ["Reading.", "Aspirin 500 mg"])
     assert env["s"].last_text_read == "Aspirin 500 mg"
 
 
@@ -89,9 +89,9 @@ def test_joy_press_repeats_last_result(env):
     state_manager.emit_event("joy_press")
     assert env["said"] == ["Nothing to repeat yet."]
     state_manager.emit_event("joy_down")
-    assert wait_for(lambda: len(env["said"]) == 2)
+    assert wait_for(lambda: len(env["said"]) == 3)  # "Reading." cue + result
     state_manager.emit_event("joy_press")
-    assert env["said"][-1] == "Aspirin 500 mg"
+    assert env["said"][-1] == "Aspirin 500 mg"  # repeats the result, not the cue
 
 
 def test_describer_failure_speaks_fallback(env, monkeypatch):

@@ -138,11 +138,20 @@ class CaneDropDetector:
 
     # Inputs ---------------------------------------------------------------
 
-    def on_impact(self, *_: Any) -> None:
+    def on_hard_impact(self, *_: Any) -> None:
+        """Accelerometer pinned at its limit: a real hit. With instant_sos the
+        alarm + SOS go out now; otherwise it is handled like any impact."""
         if not self.config.enabled:
             return
         if self.config.instant_sos:
             self._instant_fall()
+        else:
+            self.on_impact()
+
+    def on_impact(self, *_: Any) -> None:
+        # Any jolt (including handling bumps): only a drop if the cane then
+        # lies still and nobody answers the check-in.
+        if not self.config.enabled:
             return
         with self._lock:
             if self._state not in (IDLE, WATCHING):
@@ -375,6 +384,10 @@ def on_impact(*args: Any) -> None:
     get_detector().on_impact(*args)
 
 
+def on_hard_impact(*args: Any) -> None:
+    get_detector().on_hard_impact(*args)
+
+
 def on_frame(frame: dict) -> None:
     get_detector().on_frame(frame)
 
@@ -394,6 +407,7 @@ def respond_help(source: str = "unknown") -> bool:
 def register(tick_interval_s: float = 0.5) -> None:
     """Subscribe to P1's state hooks and start the timeout ticker."""
     hooks.call("state", "on_event", "impact", on_impact)
+    hooks.call("state", "on_event", "hard_impact", on_hard_impact)
     hooks.call("state", "on_frame", on_frame)
     _ticker_stop.clear()
 
