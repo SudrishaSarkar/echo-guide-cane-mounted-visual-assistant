@@ -13,17 +13,7 @@
  */
 
 #include <Wire.h>
-
-// ---------------- Frame (contract section 1) ----------------
-struct Frame {
-  int      joy_x;
-  int      joy_y;
-  int      touch;    // 0/1 raw
-  int      button;   // 0/1 raw (0 if not fitted)
-  float    ax, ay, az; // g
-  int      light;    // 0-1023
-  int      sound;    // 0-1023
-};
+#include "frame.h"
 
 // ---------------- Pin map (contract section 6) ----------------
 const int PIN_JOY_X   = A0;

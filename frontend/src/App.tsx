@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import "./App.css";
 import { VIDEO_URL, postAction } from "./api";
 import { HazardPanel } from "./HazardPanel";
+import { CameraPanel } from "./CameraPanel";
 import { useEchoGuideSocket } from "./useEchoGuideSocket";
 
 function Indicator({ label, ok }: { label: string; ok: boolean }) {
@@ -52,6 +53,7 @@ function App() {
 
         <div className="status-pane">
           <HazardPanel hazards={state.hazards} warning={state.warning} />
+          <CameraPanel state={state} />
 
           <div className="controls">
             <button onClick={() => postAction("DESCRIBE")}>Describe</button>
