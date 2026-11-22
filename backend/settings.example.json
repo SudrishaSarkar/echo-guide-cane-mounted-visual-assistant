@@ -16,5 +16,8 @@
   "sos_webhook_timeout_s": 5.0,
   "cane_drop_enabled": false,
   "cane_drop_impact_threshold": 2.5,
-  "cane_drop_inactivity_s": 10.0
+  "cane_drop_inactivity_s": 10.0,
+  "gemini_api_key": "",
+  "gemini_model": "gemini-flash-latest",
+  "google_maps_api_key": ""
 }

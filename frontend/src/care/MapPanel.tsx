@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import type { Location } from "../api";
+import type { Location, NavState } from "../api";
 import { ago } from "./format";
 
 const STALE_MS = 60_000;
 
-export function MapPanel({ location }: { location: Location | null }) {
+export function MapPanel({ location, nav }: { location: Location | null; nav?: NavState | null }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const marker = useRef<L.CircleMarker | null>(null);
   const circle = useRef<L.Circle | null>(null);
+  const route = useRef<L.LayerGroup | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export function MapPanel({ location }: { location: Location | null }) {
       map.current = null;
       marker.current = null;
       circle.current = null;
+      route.current = null;
     };
   }, []);
 
@@ -54,6 +56,25 @@ export function MapPanel({ location }: { location: Location | null }) {
       circle.current?.setLatLng(point).setRadius(location.accuracy ?? 0).setStyle({ color });
     }
   }, [location, stale]);
+
+  // Navigation route + destination.
+  const pathKey = nav?.path.length ? `${nav.path[0]}|${nav.path.length}|${nav.path.at(-1)}` : "";
+  const dest = nav && nav.status !== "idle" ? nav.destination : null;
+  useEffect(() => {
+    if (!map.current) return;
+    route.current?.remove();
+    route.current = null;
+    if (!dest || !nav?.path.length) return;
+    const group = L.layerGroup().addTo(map.current);
+    const line = L.polyline(nav.path, { color: "#1d5fbf", weight: 5, opacity: 0.8 }).addTo(group);
+    L.circleMarker([dest.lat, dest.lng], { radius: 8, color: "#2e7d32", fillOpacity: 0.9 })
+      .bindTooltip(dest.name)
+      .addTo(group);
+    route.current = group;
+    map.current.fitBounds(line.getBounds(), { padding: [30, 30], maxZoom: 18 });
+    // Redraw only when the route itself changes, not on every progress update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathKey, dest?.lat, dest?.lng]);
 
   return (
     <section className="care-card" aria-label="Location">

@@ -273,3 +273,14 @@
 .me-find { background: #1d5fbf; }
 .me-start { background: #2e7d32; }
 .me-ok { background: #2e7d32; }
+
+/* Voice assistant + directions */
+.me-talk { background: #6a1b9a; min-height: 140px; font-size: 34px; }
+.me-talk-on { background: #e65100; border-color: #fff; animation: me-pulse 1s ease-in-out infinite; }
+.me-talk:disabled { opacity: 0.7; cursor: wait; }
+@keyframes me-pulse { 50% { opacity: 0.75; } }
+@media (prefers-reduced-motion: reduce) { .me-talk-on { animation: none; } }
+
+.nav-next { font-size: 18px; font-weight: 600; margin: 4px 0; }
+.nav-ask { display: flex; gap: 8px; margin-top: 8px; }
+.nav-ask input { flex: 1; min-width: 0; font: inherit; padding: 6px 8px; }

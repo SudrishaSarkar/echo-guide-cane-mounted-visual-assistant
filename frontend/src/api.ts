@@ -47,7 +47,33 @@ export interface Location {
   lat: number;
   lng: number;
   accuracy: number | null;
+  heading?: number | null;
   ts: string;
+}
+
+export type NavStatus = "idle" | "routing" | "navigating" | "arrived" | "error";
+
+// Walking navigation (backend/app/navigation.py), driven by the phone's GPS.
+export interface NavState {
+  status: NavStatus;
+  destination: { name: string; address: string; lat: number; lng: number } | null;
+  step_index: number;
+  steps_total: number;
+  next_instruction: string | null;
+  distance_to_next_m: number | null;
+  remaining_m: number | null;
+  duration_s: number | null;
+  path: [number, number][];
+  off_route: boolean;
+  message: string;
+  demo_maps: boolean;
+}
+
+export interface AssistantReply {
+  ok: boolean;
+  intent: string;
+  transcript: string;
+  reply: string;
 }
 
 export interface Activity {
@@ -84,6 +110,10 @@ export interface SessionState {
   location: Location | null;
   recent_events: EventItem[];
   profile_updated_at: string | null;
+  nav: NavState | null;
+  // Text the /me phone should speak aloud (navigation + assistant replies).
+  phone_say: string;
+  phone_say_id: number;
 }
 
 export const INITIAL_STATE: SessionState = {
@@ -113,6 +143,9 @@ export const INITIAL_STATE: SessionState = {
   location: null,
   recent_events: [],
   profile_updated_at: null,
+  nav: null,
+  phone_say: "",
+  phone_say_id: 0,
 };
 
 export type Action =
@@ -126,7 +159,9 @@ export type Action =
   | "SOS_ACK"
   | "FIND_CANE"
   | "DROP_OK"
-  | "DROP_HELP";
+  | "DROP_HELP"
+  | "NAV_REPEAT"
+  | "NAV_STOP";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -149,4 +184,11 @@ export function getJson<T>(path: string): Promise<T> {
 
 export function sendJson<T>(path: string, method: "POST" | "PUT", body: unknown): Promise<T> {
   return request<T>(path, { method, body: JSON.stringify(body) });
+}
+
+/** Ask the EchoGuide assistant (Gemini). Send typed text or a recorded WAV clip. */
+export function askAssistant(
+  input: { text: string } | { audio_b64: string; mime_type: string },
+): Promise<AssistantReply> {
+  return sendJson<AssistantReply>("/api/assistant", "POST", input);
 }

@@ -5,6 +5,7 @@ import { ActivityChart } from "./care/ActivityChart";
 import { IncidentLog } from "./care/IncidentLog";
 import { MapPanel } from "./care/MapPanel";
 import { MePage } from "./care/MePage";
+import { NavPanel } from "./care/NavPanel";
 import { ProfilePage } from "./care/ProfilePage";
 import { SafetyPanel } from "./care/SafetyPanel";
 import { useCaregiverAlerts } from "./care/useCaregiverAlerts";
@@ -93,7 +94,8 @@ function CaregiverApp({ path }: { path: string }) {
           </div>
 
           <div className="care-grid">
-            <MapPanel location={state.location} />
+            <MapPanel location={state.location} nav={state.nav} />
+            <NavPanel nav={state.nav} />
             <ActivityChart activity={state.activity} />
             <IncidentLog events={state.recent_events} />
           </div>

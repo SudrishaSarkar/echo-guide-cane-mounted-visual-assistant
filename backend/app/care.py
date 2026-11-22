@@ -4,7 +4,7 @@ Routes:
     GET  /api/profile         -> {"data": Profile, "updated_at": iso}  (seeded with demo data)
     PUT  /api/profile         <- Profile
     GET  /api/location        -> {lat, lng, accuracy, ts} | null
-    POST /api/location        <- {lat, lng, accuracy}  (from the /me phone page)
+    POST /api/location        <- {lat, lng, accuracy, heading?}  (from the /me phone page)
 
 The location is kept in memory only (latest fix), pushed to the dashboard as
 SessionState.location, and attached to SOS and cane-drop alerts through
@@ -13,14 +13,17 @@ person's medical details.
 """
 from __future__ import annotations
 
+import logging
 import threading
-from typing import Optional
+from typing import Callable, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from . import events, hooks
 from .db import get_db, utc_now_iso
+
+log = logging.getLogger("echoguide.care")
 
 
 class Contact(BaseModel):
@@ -68,10 +71,15 @@ class LocationIn(BaseModel):
     lat: float = Field(..., ge=-90, le=90)
     lng: float = Field(..., ge=-180, le=180)
     accuracy: Optional[float] = Field(None, ge=0)
+    # Compass heading of the phone (0 = north, clockwise), if it has a compass.
+    heading: Optional[float] = Field(None, ge=0, lt=360)
 
 
 _location: Optional[dict] = None
 _location_lock = threading.Lock()
+
+# Called with every new fix (navigation.py registers here).
+location_listeners: list[Callable[[dict], None]] = []
 
 
 def latest_location() -> Optional[dict]:
@@ -79,12 +87,19 @@ def latest_location() -> Optional[dict]:
         return dict(_location) if _location else None
 
 
-def set_location(lat: float, lng: float, accuracy: Optional[float] = None) -> dict:
+def set_location(
+    lat: float, lng: float, accuracy: Optional[float] = None, heading: Optional[float] = None
+) -> dict:
     global _location
-    fix = {"lat": lat, "lng": lng, "accuracy": accuracy, "ts": utc_now_iso()}
+    fix = {"lat": lat, "lng": lng, "accuracy": accuracy, "heading": heading, "ts": utc_now_iso()}
     with _location_lock:
         _location = fix
     hooks.update_state(location=fix)
+    for listener in list(location_listeners):
+        try:
+            listener(dict(fix))
+        except Exception:
+            log.exception("location listener failed")
     return dict(fix)
 
 
@@ -134,4 +149,4 @@ def api_get_location() -> Optional[dict]:
 
 @router.post("/api/location")
 def api_post_location(body: LocationIn) -> dict:
-    return set_location(body.lat, body.lng, body.accuracy)
+    return set_location(body.lat, body.lng, body.accuracy, body.heading)

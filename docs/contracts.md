@@ -69,8 +69,15 @@ Pushes the full `SessionState` on every change. **Removed** from the old
 | `sos_countdown` | seconds left in the hold countdown, or null | P2 |
 | `cane_drop_prompt`, `find_cane_active` | boolean | P3 |
 | `activity` | `{moving_minutes_last_hour, last_motion_ts}` | P3 |
-| `location` | `{lat, lng, accuracy, ts}` \| null | P3 |
+| `location` | `{lat, lng, accuracy, heading, ts}` \| null (`heading` = phone compass, degrees from north, or null) | P3 |
+| `nav` | navigation state (below) \| null | P3 |
+| `phone_say`, `phone_say_id` | text the `/me` phone speaks aloud (directions + assistant replies); the same text also goes to `audio.say` | P3 |
 | `recent_events` | event list (below) | P3 |
+
+`nav`: `{status: "idle"|"routing"|"navigating"|"arrived"|"error", destination: {name, address, lat, lng} | null,
+step_index, steps_total, next_instruction, distance_to_next_m, remaining_m, duration_s,
+path: [[lat, lng], ...], off_route, message, demo_maps}`. `message` is the last thing navigation said;
+`demo_maps` is true when no Google Maps key is set (fake routes).
 
 Each event: `{id, ts, type, payload, notify_status, severity, notification}`
 - `severity`: `alert` (SOS, DROP_HELP, CANE_DROP) \| `warning` (NO_MOVEMENT) \| `update` (SOS_CANCELLED, DROP_OK, the all-clear after a cane-drop alert) \| `info` (everything else)
@@ -88,12 +95,16 @@ a single tunnel on port 5173 serves the whole app over HTTPS.
 
 | Method + path | Body | Notes |
 |---|---|---|
-| `POST /action` | `{"action": ...}` | `DESCRIBE`, `READ_TEXT`, `FOCUS_LEFT`, `FOCUS_RIGHT`, `REPEAT`, `SOS`, `SOS_CANCEL`, `SOS_ACK`, `FIND_CANE`, `DROP_OK`, `DROP_HELP`. Same handlers as hardware events |
+| `POST /action` | `{"action": ...}` | `DESCRIBE`, `READ_TEXT`, `FOCUS_LEFT`, `FOCUS_RIGHT`, `REPEAT`, `SOS`, `SOS_CANCEL`, `SOS_ACK`, `FIND_CANE`, `DROP_OK`, `DROP_HELP`, `NAV_REPEAT`, `NAV_STOP`. Same handlers as hardware events |
 | `POST /api/sos` | `{"source":"dashboard"\|"me"}` | Trigger SOS |
 | `POST /api/sos/cancel` | `{"source":...}` | User cancels; false-alarm follow-up if already delivered |
 | `POST /api/sos/ack` | `{"by":"caregiver"}` | Caregiver acknowledges; the cane tells the user |
 | `POST /api/events/{id}/seen` | `{"by":"caregiver"}` | **Caregiver views only.** Marks a `pending` event `delivered`; for the open SOS, the cane says "Your caregiver has been alerted." Idempotent |
-| `POST /api/location` | `{"lat":0,"lng":0,"accuracy":0}` | From the user's phone (`/me`) |
+| `POST /api/location` | `{"lat":0,"lng":0,"accuracy":0,"heading":null}` | From the user's phone (`/me`), every ~2 s. Also drives navigation |
+| `POST /api/assistant` | `{"text":"..."}` or `{"audio_b64":"<WAV>","mime_type":"audio/wav"}` | Gemini voice assistant. Returns `{ok, transcript, intent, destination_query, nearest, reply}`; the reply is also spoken (cane + phone). Intents: `navigate`, `stop_navigation`, `repeat`, `route_status`, `where_am_i`, `chat`, `unclear` |
+| `GET /api/nav` | | Same object as `SessionState.nav` |
+| `POST /api/nav/start` | `{"query":"pharmacy","nearest":true}` | Start navigation directly (400 + spoken reason on failure) |
+| `POST /api/nav/stop` / `POST /api/nav/repeat` | | Stop / repeat the next direction |
 | `GET /api/profile` / `PUT /api/profile` | profile JSON (below) | Demo data only |
 | `GET /api/location` | | Latest phone fix `{lat, lng, accuracy, ts}` or null |
 | `GET /api/events` | | Full history, newest first |
@@ -110,7 +121,13 @@ Profile JSON:
 ## 5. Privacy
 - Profile and medical info are **demo data only**.
 - Events and the profile live in SQLite on the laptop (`backend/echoguide.db`, gitignored); the phone location is kept in memory only.
-- Nothing goes to an outside service except OpenStreetMap map tiles. No blockchain, no SMS, email or Discord.
+- Outside services: OpenStreetMap map tiles, and **Google for the voice assistant + navigation**:
+  the user's voice clip, the profile's name/home address/care notes (demo data) and the
+  navigation status go to the **Gemini API**; the phone location and destination search go to
+  **Google Maps Platform** (Places API (New), Routes API, Geocoding API). Gemini never gets raw GPS.
+  Keys: `GEMINI_API_KEY` / `GOOGLE_MAPS_API_KEY` env vars or `settings.json` (gitignored). Without
+  keys, typed requests use a keyword parser and routes are fake demo routes.
+- No blockchain, no SMS, email or Discord.
 
 ## 6. Arduino Uno pin map
 | Pin | Part | Owner |
@@ -147,6 +164,12 @@ serial_reader.send(cmd: dict)
 state.on_event(name, handler) / state.update(**fields)
 state.on_frame(handler)      # handler(frame: dict) for every {"type":"input"} frame (P3's cane_drop needs ax/ay/az)
 ```
+
+**Navigation wiring for `main.py` (P1):** include `navigation.router` and `assistant.router`, call
+`navigation.register()` at startup (after `care.register()`), call `navigation.get_navigator().tick()`
+about once a second, and merge `navigation.ACTIONS` into the `/action` handlers.
+`backend/tools/p3_dev_server.py` shows all of this. Suggested (P2): while navigating, `joy_press`
+(repeat) could call `navigation.get_navigator().repeat()`.
 
 **Backend events/SOS API (P3)**, called by P2's controls and P3's other modules:
 ```python
