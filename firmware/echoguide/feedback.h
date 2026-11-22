@@ -12,7 +12,8 @@
  */
 #pragma once
 
-struct Frame;  // defined in echoguide.ino
+#include <Arduino.h>
+#include "frame.h"
 
 void feedbackSetup();
 void feedbackUpdate(Frame &f);
