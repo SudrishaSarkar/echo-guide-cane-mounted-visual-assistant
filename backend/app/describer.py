@@ -32,6 +32,10 @@ def describe(focus: str = "all", detections: Optional[List[dict]] = None,
         from . import detector
         detections = list(detector.latest_detections)
 
+    # Drop weak guesses (e.g. a misread "cat") before describing.
+    min_conf = getattr(settings, "describe_min_confidence", 0.45)
+    detections = [d for d in detections if d.get("conf", 1.0) >= min_conf]
+
     if focus in ("left", "right"):
         detections = [d for d in detections if d.get("side") == focus]
     if not detections:
@@ -78,7 +82,7 @@ if __name__ == "__main__":
     if image is None:
         sys.exit(f"could not read {sys.argv[1]}")
     width = image.shape[1]
-    result = YOLO("yolo11n.pt").predict(image, conf=settings.detection_confidence, verbose=False)[0]
+    result = YOLO(settings.detector_model).predict(image, conf=settings.detection_confidence, verbose=False)[0]
     dets = []
     for box in result.boxes:
         x1, y1, x2, y2 = [float(v) for v in box.xyxy[0].tolist()]

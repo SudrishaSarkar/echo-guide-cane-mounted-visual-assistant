@@ -34,11 +34,23 @@ def _side(cx: float, width: int) -> str:
     return "right"
 
 
+def _person_plausible(det: dict, frame_height: int) -> bool:
+    """Head-to-chest proxy: the box must be tall enough and portrait-shaped.
+    Filters out cards/hands that YOLO mislabels as 'person'."""
+    x1, y1, x2, y2 = det["box"]
+    h, w = y2 - y1, x2 - x1
+    if h <= 0 or w <= 0:
+        return False
+    if h / frame_height < settings.person_min_height_frac:
+        return False
+    return h / w >= settings.person_min_aspect
+
+
 class Detector:
-    def __init__(self, model_path: str = "yolo11n.pt") -> None:
+    def __init__(self, model_path: str = "") -> None:
         from ultralytics import YOLO  # lazy: backend must boot without it
 
-        self.model = YOLO(model_path)
+        self.model = YOLO(model_path or settings.detector_model)
         self._thread: Optional[threading.Thread] = None
         self._running = False
 
@@ -74,10 +86,12 @@ class Detector:
                 label = results.names[int(box.cls[0])]
                 conf = float(box.conf[0])
                 x1, y1, x2, y2 = [float(v) for v in box.xyxy[0].tolist()]
+                det = {"label": label, "conf": conf, "box": (x1, y1, x2, y2)}
+                if label == "person" and not _person_plausible(det, height):
+                    continue
                 side = _side((x1 + x2) / 2, width)
-                detections.append(
-                    {"label": label, "conf": conf, "box": (x1, y1, x2, y2), "side": side}
-                )
+                det["side"] = side
+                detections.append(det)
                 color = {"left": (255, 80, 80), "center": (80, 200, 80), "right": (80, 120, 255)}[side]
                 cv2.rectangle(annotated, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
                 cv2.putText(

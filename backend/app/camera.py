@@ -52,6 +52,9 @@ class Camera:
                 time.sleep(0.1)
                 continue
             state_manager.update(camera_connected=True)
+            # Mirror horizontally so on-screen movement matches what the user
+            # sees (selfie-style). Detections/OCR/audio all inherit this.
+            frame = cv2.flip(frame, 1)
             with self._lock:
                 self._latest = frame
             time.sleep(0)  # capture runs as fast as the driver allows
