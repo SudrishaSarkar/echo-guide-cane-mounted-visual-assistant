@@ -237,7 +237,7 @@ class SystemNotificationTests(EventsTestCase):
 
     def test_cane_drop_and_no_movement(self) -> None:
         drop = events.record("CANE_DROP", {}, notify=True)
-        self.assertEqual(drop["notification"]["title"], "ALERT: Alex's cane may have been dropped")
+        self.assertEqual(drop["notification"]["title"], "ALERT: Alex may have fallen")
         still = events.record("NO_MOVEMENT", {"duration": "3 hours"}, notify=True)
         self.assertEqual(still["severity"], "warning")
         self.assertEqual(still["notification"]["title"], "WARNING: No cane movement for 3 hours")

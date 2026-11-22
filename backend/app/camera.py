@@ -52,9 +52,14 @@ class Camera:
                 time.sleep(0.1)
                 continue
             state_manager.update(camera_connected=True)
-            # Mirror horizontally so on-screen movement matches what the user
-            # sees (selfie-style). Detections/OCR/audio all inherit this.
-            frame = cv2.flip(frame, 1)
+            # Optional selfie-style mirror. Off by default: on the cane the
+            # camera faces the same way as the user, and mirroring would swap
+            # left/right for narration and beeps and make OCR read backwards
+            # text. Detections/OCR/audio all inherit whatever is stored here.
+            if settings.camera_rotate_180:  # camera mounted upside down
+                frame = cv2.flip(frame, -1)
+            if settings.camera_mirror:
+                frame = cv2.flip(frame, 1)
             with self._lock:
                 self._latest = frame
             time.sleep(0)  # capture runs as fast as the driver allows

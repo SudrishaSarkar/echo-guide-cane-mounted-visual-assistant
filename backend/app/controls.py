@@ -78,6 +78,8 @@ def on_tap() -> None:
     s = state_manager.state
     if s.sos_active:
         state_manager.emit_event("sos_cancel")
+        if s.cane_drop_prompt:  # SOS came from a fall: one tap answers both
+            state_manager.emit_event("drop_ok")
     elif s.cane_drop_prompt:
         state_manager.emit_event("drop_ok")
     else:
@@ -87,6 +89,9 @@ def on_tap() -> None:
 def on_hold_start() -> None:
     global _countdown_cancel
     if state_manager.state.sos_active:
+        return
+    if state_manager.state.cane_drop_prompt:
+        state_manager.emit_event("drop_help")  # straight to SOS, no countdown
         return
     with _lock:
         if _countdown_cancel is not None:

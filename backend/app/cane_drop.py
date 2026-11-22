@@ -44,7 +44,9 @@ log = logging.getLogger("echoguide.cane_drop")
 IDLE, WATCHING, PROMPTING, ALERTED = "idle", "watching", "prompting", "alerted"
 
 PROMPT = "The cane may have been dropped. Tap if you're OK, or hold for help."
-ALERT_SENT = "I've let your caregiver know the cane may have been dropped."
+ALERT_SENT = "No response. Sending SOS to your caregiver."
+FALL_SPOKEN = "Fall detected. SOS sent to your caregiver. Tap if you're OK."
+ALARM_MS = 30000  # loud continuous buzzer when nobody answers (fall + unresponsive)
 OK_REPLY = "OK, glad you're all right."
 OK_AFTER_ALERT = "OK. I've told your caregiver you're all right."
 
@@ -67,6 +69,9 @@ class DropConfig:
     response_timeout_s: float = 30.0 # no answer -> caregiver alert
     reprompt_s: float = 15.0         # repeat the question once
     beep_max_s: float = 120.0        # stop the find beeps after this long
+    # True: the impact itself raises the alarm, logs the fall and sends the
+    # SOS in the same instant (no still/no-answer wait). One tap cancels.
+    instant_sos: bool = False
 
     @classmethod
     def from_settings(cls) -> "DropConfig":
@@ -74,10 +79,14 @@ class DropConfig:
         if axis not in ("x", "y", "z"):
             log.warning("cane_axis %r is not x/y/z; using z", axis)
             axis = "z"
+        response = float(hooks.setting("cane_drop_response_s", 20.0))
         return cls(
             enabled=bool(hooks.setting("cane_drop_enabled", True)),
             cane_axis=axis,
             still_required_s=float(hooks.setting("cane_drop_inactivity_s", 10.0)),
+            instant_sos=bool(hooks.setting("fall_instant_sos", True)),
+            response_timeout_s=response,
+            reprompt_s=response / 2,
         )
 
 
@@ -116,6 +125,7 @@ class CaneDropDetector:
         self._beeping = False
         self._drop_event_id: Optional[int] = None
         self._payload: dict = {}
+        self._instant = False
 
     @property
     def state(self) -> str:
@@ -131,6 +141,9 @@ class CaneDropDetector:
     def on_impact(self, *_: Any) -> None:
         if not self.config.enabled:
             return
+        if self.config.instant_sos:
+            self._instant_fall()
+            return
         with self._lock:
             if self._state not in (IDLE, WATCHING):
                 return
@@ -139,6 +152,31 @@ class CaneDropDetector:
             self._impact_ts = utc_now_iso()
             self._still_since = None
         log.info("impact: watching for a dropped cane")
+
+    def _instant_fall(self) -> None:
+        """Impact -> alarm + logged fall + SOS, all at once."""
+        now = self._clock()
+        with self._lock:
+            if self._state in (PROMPTING, ALERTED):
+                return  # already raised; don't stack SOSes
+            ts = utc_now_iso()
+            self._state = ALERTED
+            self._instant = True
+            self._impact_at = self._alert_at = now
+            self._impact_ts = ts
+            self._beeping = True
+            self._drop_event_id = None
+            tilt = tilt_deg(self._prev, self.config.cane_axis) if self._prev else None
+            payload = {"impact_ts": ts, "alert_ts": ts, "trigger": "impact"}
+            if tilt is not None:
+                payload["tilt_deg"] = round(tilt)
+        log.warning("impact: fall alarm + SOS sent immediately")
+        _run([
+            lambda: hooks.update_state(cane_drop_prompt=True),
+            lambda: self._send_drop_alert(payload),          # SOS + incident log
+            lambda: hooks.send_cmd({"cmd": "buzz", "ms": ALARM_MS}),  # after the SOS's own beeps
+            lambda: hooks.say(FALL_SPOKEN),
+        ])
 
     def on_frame(self, frame: dict) -> None:
         vec = read_vector(frame)
@@ -167,7 +205,9 @@ class CaneDropDetector:
                     self._to_idle()
                 elif self._still_since is not None and now - self._still_since >= cfg.still_required_s:
                     actions += self._start_prompt(now)
-            elif self._state in (PROMPTING, ALERTED):
+            elif self._state in (PROMPTING, ALERTED) and not self._instant:
+                # (After an instant fall alert, someone picking the cane up
+                # doesn't mean the person is OK: only a tap clears it.)
                 if tilt is not None and tilt <= cfg.upright_angle_deg:
                     actions += self._resolve_ok("picked_up")
 
@@ -236,7 +276,16 @@ class CaneDropDetector:
                 self._state = ALERTED
                 self._alert_at = now
                 payload = dict(self._payload)
-                return [lambda: self._send_drop_alert(payload), lambda: hooks.say(ALERT_SENT)]
+                payload["alert_ts"] = utc_now_iso()
+                payload["no_answer_s"] = round(now - self._prompt_at, 1)
+                # Fall + no answer: loud alarm for bystanders, an SOS to the
+                # caregiver, and a logged fall incident linked to that SOS.
+                return [
+                    lambda: self._send_drop_alert(payload),
+                    lambda: hooks.send_cmd({"cmd": "buzz", "ms": ALARM_MS}),
+                    lambda: hooks.chime("sos"),
+                    lambda: hooks.say(ALERT_SENT),
+                ]
             if not self._reprompted and now - self._prompt_at >= cfg.reprompt_s:
                 self._reprompted = True
                 return [lambda: hooks.say(PROMPT)]
@@ -270,6 +319,7 @@ class CaneDropDetector:
 
     def _to_idle(self) -> None:
         self._state = IDLE
+        self._instant = False
         self._still_since = None
         self._beeping = False
         self._drop_event_id = None
@@ -278,6 +328,13 @@ class CaneDropDetector:
         location = events.current_location()
         if location:
             payload["location"] = location
+        payload["kind"] = "fall"
+        try:
+            sos = events.trigger_sos("fall")
+            if sos and sos.get("id") is not None:
+                payload["sos_event_id"] = sos["id"]
+        except Exception:
+            log.exception("SOS after fall failed")
         event = events.record("CANE_DROP", payload, notify=True)
         with self._lock:
             if self._state == ALERTED:

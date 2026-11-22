@@ -2,7 +2,7 @@
 
 Up to three detected objects, largest first, with their position:
 "A chair in the centre, a person on the left." Focus "left"/"right" only
-describes that third of the frame. Runs only when asked, never continuously.
+describes that third of the frame. Runs when asked; narrator.py does the continuous narration.
 """
 from __future__ import annotations
 
@@ -25,8 +25,7 @@ def describe(focus: str = "all", detections: Optional[List[dict]] = None,
              light: Optional[float] = None) -> str:
     if light is None:
         light = state_manager.state.light
-    if light is not None and light < getattr(settings, "describe_min_light", DARK_LIGHT_THRESHOLD):
-        return "Too dark to describe."
+    dark = light is not None and light < getattr(settings, "describe_min_light", DARK_LIGHT_THRESHOLD)
 
     if detections is None:
         from . import detector
@@ -39,6 +38,9 @@ def describe(focus: str = "all", detections: Optional[List[dict]] = None,
     if focus in ("left", "right"):
         detections = [d for d in detections if d.get("side") == focus]
     if not detections:
+        # Only blame the light when nothing was recognised.
+        if dark:
+            return "Too dark to describe."
         if focus in ("left", "right"):
             return f"I don't see anything I recognise on the {focus}."
         return "I don't see any objects I recognise."

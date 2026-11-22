@@ -1,6 +1,6 @@
 // Incident history: what happened, when, and whether a caregiver screen showed it.
 import type { EventItem } from "../api";
-import { clockTime, eventTitle } from "./format";
+import { eventDetails, eventTitle, fullDateTime } from "./format";
 
 const STATUS_TEXT: Record<string, string> = {
   pending: "not seen yet",
@@ -18,7 +18,6 @@ export function IncidentLog({ events }: { events: EventItem[] }) {
         <ul className="incidents">
           {events.map((event) => (
             <li key={event.id} className={`sev-${event.severity}`}>
-              <span className="time">{clockTime(event.ts)}</span>
               <span className="what">
                 {eventTitle(event)}
                 {STATUS_TEXT[event.notify_status] && (
@@ -27,6 +26,10 @@ export function IncidentLog({ events }: { events: EventItem[] }) {
                   </span>
                 )}
               </span>
+              <span className="time">{fullDateTime(event.ts)}</span>
+              {eventDetails(event).map((line) => (
+                <span key={line} className="detail">{line}</span>
+              ))}
             </li>
           ))}
         </ul>

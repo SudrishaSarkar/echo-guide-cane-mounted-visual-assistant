@@ -21,9 +21,9 @@ const int PIN_LIGHT   = A2;
 const int PIN_SOUND   = A3;
 const int PIN_SDA     = A4;   // accel I2C (Wire handles these)
 const int PIN_SCL     = A5;
-const int PIN_TOUCH   = D5;
-const int PIN_BUTTON  = D6;
-const int PIN_BUZZER  = D7;   // driven by feedback.cpp
+const int PIN_TOUCH   = 5; 
+const int PIN_BUTTON  = 6; 
+const int PIN_BUZZER  = 7;    // driven by feedback.cpp
 
 const unsigned long FRAME_INTERVAL_MS = 50; // ~20 Hz
 

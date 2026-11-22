@@ -149,6 +149,7 @@ class SerialReader:
         # P1 owns `light`; everything else stays available via latest_input.
         if "light" in payload:
             state_manager.update(light=payload["light"])
+        state_manager.emit_frame(payload)
 
 
 serial_reader = SerialReader()
