@@ -13,8 +13,8 @@ Pin map is the contract in `docs/contracts.md` section 6. P1 owns **A2
 | Buzzer | D7 -> Arduino | Driven by `feedback.cpp` (`buzz`/`beep` commands) |
 | Arduino -> laptop | USB data | 115200 baud; close Serial Monitor first |
 
-P2 owns A0/A1 (joystick), A2 is **light** — do not confuse. P3 owns A3
-(sound), A4/A5 (accel I2C), D5 (touch), D6 (button).
+P2 owns A0/A1 (joystick), D5 (touch), D6 (button). P3 owns A3
+(sound), A4/A5 (accel I2C). A2 is **light** — do not confuse.
 
 ## Webcam mounting (P1)
 
