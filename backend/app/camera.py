@@ -6,6 +6,7 @@ calling set_annotated(); OCR (P2) reads latest_frame().
 """
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from typing import Generator, Optional
@@ -27,7 +28,10 @@ class Camera:
         self._thread: Optional[threading.Thread] = None
 
     def open(self) -> bool:
-        self._cap = cv2.VideoCapture(settings.camera_index)
+        # DSHOW is reliable for UVC webcams on Windows; MSMF (the default)
+        # intermittently fails to grab frames. Other platforms use the default.
+        backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
+        self._cap = cv2.VideoCapture(settings.camera_index, backend)
         # 720p gives the detector noticeably better small-object accuracy;
         # still cheap enough for ~5 fps YOLO on CPU.
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
