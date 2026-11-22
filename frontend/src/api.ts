@@ -13,6 +13,7 @@ export function wsUrl(): string {
 
 export type Mode = "IDLE" | "DESCRIBING" | "READING" | "SOS_COUNTDOWN" | "SOS_ACTIVE";
 export type Side = "left" | "center" | "right";
+export type HazardSide = Side; // alias kept for P1/P2 components
 export type WarningSide = Side | null;
 
 export interface Hazard {

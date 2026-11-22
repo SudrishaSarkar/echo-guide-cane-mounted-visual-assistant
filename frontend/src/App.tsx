@@ -1,6 +1,9 @@
 import "./App.css";
 import "./care/care.css";
+import { useEffect } from "react";
 import { VIDEO_URL, postAction } from "./api";
+import { HazardPanel } from "./HazardPanel";
+import { CameraPanel } from "./CameraPanel";
 import { ActivityChart } from "./care/ActivityChart";
 import { IncidentLog } from "./care/IncidentLog";
 import { MapPanel } from "./care/MapPanel";
@@ -41,6 +44,10 @@ function CaregiverApp({ path }: { path: string }) {
   const { state, wsConnected } = useEchoGuideSocket();
   const alerts = useCaregiverAlerts(state.recent_events);
 
+  useEffect(() => {
+    document.title = state.warning ? `EchoGuide — ${state.warning}` : "EchoGuide";
+  }, [state.warning]);
+
   return (
     <div className="app">
       <header>
@@ -53,6 +60,9 @@ function CaregiverApp({ path }: { path: string }) {
           <Indicator label="Server" ok={wsConnected} />
           <Indicator label="Camera" ok={state.camera_connected} />
           <Indicator label="Arduino" ok={state.arduino_connected} />
+          <span className="indicator">
+            Light: {state.light === null ? "unknown" : state.light}
+          </span>
         </div>
       </header>
 
@@ -74,6 +84,9 @@ function CaregiverApp({ path }: { path: string }) {
               onDismissLatest={alerts.dismissLatest}
             />
 
+            <HazardPanel hazards={state.hazards} warning={state.warning} />
+            <CameraPanel state={state} />
+
             <div className="status-row">
               <span className="status-label">Mode</span>
               <span className="status-value">{state.mode}</span>
@@ -89,7 +102,18 @@ function CaregiverApp({ path }: { path: string }) {
             <div className="controls">
               <button onClick={() => postAction("DESCRIBE")}>Describe</button>
               <button onClick={() => postAction("READ_TEXT")}>Read text</button>
+              <button onClick={() => postAction("REPEAT")}>Repeat</button>
+              <button onClick={() => postAction("SOS")} className="sos">
+                SOS
+              </button>
+              <button onClick={() => postAction("SOS_CANCEL")} className="cancel">
+                Cancel SOS
+              </button>
+              <button onClick={() => postAction("FIND_CANE")}>Find cane</button>
             </div>
+            <p className="keyboard-hint">
+              Test buttons mirror joystick/touch hardware actions.
+            </p>
           </div>
 
           <div className="care-grid">

@@ -7,13 +7,13 @@
 #include <Arduino.h>
 
 struct Frame {
-  uint32_t seq = 0;
-  int joyX = 512, joyY = 512;   // P2 (controls)
-  uint8_t touch = 0;            // P2
-  uint8_t button = 0;           // P2
-  float ax = 0, ay = 0, az = 0; // P3 (safety), in g
-  int light = 0;                // P1 (feedback)
-  int sound = 0;                // P3 (safety), 0-1023
+  int      joy_x = 512;
+  int      joy_y = 512;
+  int      touch = 0;    // 0/1 raw
+  int      button = 0;   // 0/1 raw (0 if not fitted)
+  float    ax = 0, ay = 0, az = 1;  // g
+  int      light = 0;    // 0-1023
+  int      sound = 0;    // 0-1023
 };
 
 // Prints {"type":"event","name":"<name>"} on its own line. Defined in echoguide.ino.

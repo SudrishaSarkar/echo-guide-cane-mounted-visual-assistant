@@ -5,3 +5,4 @@ opencv-python
 ultralytics
 pygame
 numpy
+pyttsx3

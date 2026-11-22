@@ -1,25 +1,31 @@
-# Wiring notes (skeleton)
+# Wiring notes — Person 1 (vision alerts + core)
 
-To be filled in once exact component models are confirmed.
+Pin map is the contract in `docs/contracts.md` section 6. P1 owns **A2
+(light sensor)** and **D7 (buzzer)**; the webcam and stereo earbuds are USB.
 
-## Modules
+## P1 connections
 
-- Control module (beside handle): joystick, touch sensor / SOS button
-- Sensing module (below handle, facing forward): 3x ultrasonic sensors,
-  movable webcam on pan-tilt bracket, Arduino, Pi, power supply
-
-## Connections
-
-| Connection | Pins | Notes |
+| Part | Pin(s) | Notes |
 |---|---|---|
-| Arduino -> laptop/Pi | USB data cable | |
-| Webcam -> Pi | USB | |
-| Joystick -> Arduino | 2 analog + power + gnd | |
-| Touch sensor -> Arduino | 1 digital + power + gnd | |
-| Ultrasonic x3 -> Arduino | trig/echo pairs + power + gnd | Trigger sequentially |
-| Servos x2 -> Arduino + supply | PWM signal + external PSU + common gnd | Do NOT power servos from Arduino 5V/GPIO |
-| Accelerometer -> Arduino | I2C (SDA/SCL) | |
+| Webcam | USB -> laptop/Pi | Mount facing forward, angled slightly down, ~knee-to-chest height, rigid (no wobble when cane swings) |
+| Stereo earbuds | USB/audio jack -> laptop | All user audio comes from the backend (Pygame + pyttsx3) |
+| Light sensor | A2 -> Arduino | Analog out; raw 0-1023 in `Frame.light` |
+| Buzzer | D7 -> Arduino | Driven by `feedback.cpp` (`buzz`/`beep` commands) |
+| Arduino -> laptop | USB data | 115200 baud; close Serial Monitor first |
 
-## Serial format
+P2 owns A0/A1 (joystick), D5 (touch), D6 (button). P3 owns A3
+(sound), A4/A5 (accel I2C). A2 is **light** — do not confuse.
 
-See `firmware/echoguide/echoguide.ino` header comment.
+## Webcam mounting (P1)
+
+- Rigid mount on the sensing module below the handle, facing forward.
+- Tilt slightly down (~15-30 deg) so obstacles at knee/chest height fill the
+  lower frame — hazard heuristics key off box height and bottom-edge
+  position.
+- Keep the lens clean and the cable strain-relieved; the cane swings, so
+  prefer tape/zip-ties + hot glue over loose tape.
+
+## Test without the cane Arduino
+
+`python backend/tools/fake_arduino.py` then set `serial_port` in
+`backend/settings.json` to `"tcp:localhost:8765"`.
