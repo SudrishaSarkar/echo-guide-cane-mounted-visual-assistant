@@ -38,6 +38,7 @@ accelerometer, sound sensor, light sensor, buzzer. **No servos, no ultrasonics.*
 | `hold_release` | Touch released after `hold_start` | P2 | Cancel countdown if not finished |
 | `button_hold` | Push button held >= 2 s (if fitted) | P2 | Trigger SOS immediately |
 | `impact` | ±1.5 g sensor: any axis at its limit (≥ ~1.4 g) or a > ~1 g jump between readings (~125 reads/s, 2 s cooldown). Also fires on normal cane taps | P3 | Start cane-drop check (only prompts if then lying down + still) |
+| `hard_impact` | Same as `impact`, but only when an axis is pinned at the sensor limit (a real hit, e.g. the cane hitting the floor). Sent just before the matching `impact` | P3 | Instant fall alarm + SOS + logged fall (`fall_instant_sos`) |
 | `clap` | **Double clap**: two sharp spikes within ~0.6 s | P3 | Find cane (buzz 5 s) |
 | `loud` | Sound above threshold >= 0.5 s | P3 | Log `LOUD_NOISE` event |
 

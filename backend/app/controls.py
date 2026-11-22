@@ -78,6 +78,8 @@ def on_tap() -> None:
     s = state_manager.state
     if s.sos_active:
         state_manager.emit_event("sos_cancel")
+        if s.cane_drop_prompt:  # SOS came from a fall: one tap answers both
+            state_manager.emit_event("drop_ok")
     elif s.cane_drop_prompt:
         state_manager.emit_event("drop_ok")
     else:
@@ -87,6 +89,9 @@ def on_tap() -> None:
 def on_hold_start() -> None:
     global _countdown_cancel
     if state_manager.state.sos_active:
+        return
+    if state_manager.state.cane_drop_prompt:
+        state_manager.emit_event("drop_help")  # straight to SOS, no countdown
         return
     with _lock:
         if _countdown_cancel is not None:
@@ -141,6 +146,7 @@ def _start_describe(focus: str) -> None:
 
 
 def _start_read() -> None:
+    _say_status("Reading.")  # instant feedback; OCR takes a few seconds
     _run_latest(Mode.READING, reader.read_text, "last_text_read", "Text reading unavailable.")
 
 
@@ -171,6 +177,11 @@ def _run_latest(mode: Mode, work: Callable[[], str], field: str, fallback: str) 
             state_manager.update(mode=Mode.IDLE)
 
     threading.Thread(target=task, daemon=True).start()
+
+
+def _say_status(text: str) -> None:
+    """Short status cue: spoken, but not stored as the result to repeat."""
+    audio.say(text)
 
 
 def _say(text: str) -> None:

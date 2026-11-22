@@ -12,7 +12,9 @@ function hourLabel(iso: string): string {
 }
 
 export function ActivityChart({ activity }: { activity: Activity | null }) {
-  if (!activity) {
+  // The backend sends {} until it has accelerometer history, so check the
+  // fields we use, not just null.
+  if (!activity || !Array.isArray(activity.hourly)) {
     return (
       <section className="care-card" aria-label="Activity">
         <h2>Activity</h2>

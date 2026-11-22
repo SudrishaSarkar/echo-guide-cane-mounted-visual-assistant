@@ -26,7 +26,7 @@ const int JOY_PRESS_X = 950;           // raw X at or above this = pressed in
 // Mounting as calibrated: X is the up/down axis (down = ~762, up = ~262) and
 // Y is the left/right axis (right = ~774, left = ~247). Pressing in still drives X to ~1023.
 const bool JOY_AXES_SWAPPED = true;    // true: X = up/down, Y = left/right
-const bool JOY_UP_IS_HIGH = false;     // flip if "up" reads as joy_down
+const bool JOY_UP_IS_HIGH = true;      // flip if "up" reads as joy_down
 const bool JOY_RIGHT_IS_HIGH = true;   // flip if "right" reads as joy_left
 const unsigned long JOY_CONFIRM_MS = 40;
 const unsigned long JOY_DEBOUNCE_MS = 400;

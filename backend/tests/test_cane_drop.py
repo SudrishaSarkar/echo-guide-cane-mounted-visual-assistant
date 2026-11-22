@@ -215,6 +215,19 @@ class AlertTests(DropTestCase):
         self.assertEqual(shown["severity"], "alert")
         self.assertEqual(shown["notification"]["tag"], f"echoguide-drop-{alert['id']}")
 
+    def test_unanswered_fall_sounds_alarm_and_sends_sos(self) -> None:
+        self.drop()
+        self.advance(31)
+        self.send_cmd.assert_any_call({"cmd": "buzz", "ms": cane_drop.ALARM_MS})
+        self.assertTrue(events.sos_open())
+        fall = get_db().list_events()[0]
+        self.assertEqual(fall["type"], "CANE_DROP")
+        self.assertEqual(fall["payload"]["kind"], "fall")
+        sos = get_db().get_event(fall["payload"]["sos_event_id"])
+        self.assertEqual((sos["type"], sos["payload"]["source"]), ("SOS", "fall"))
+        for key in ("impact_ts", "alert_ts", "no_answer_s", "still_s", "tilt_deg"):
+            self.assertIn(key, fall["payload"])
+
     def test_alert_includes_location(self) -> None:
         loc = {"lat": 43.0, "lng": -81.2, "accuracy": 9, "ts": "t"}
         with mock.patch.object(events, "location_provider", lambda: loc):
@@ -252,7 +265,7 @@ class AlertTests(DropTestCase):
         self.advance(31)
         drop_id = get_db().list_events()[0]["id"]
         self.assertTrue(self.d.respond_help("me"))
-        help_event = get_db().list_events()[1]
+        help_event = next(e for e in get_db().list_events() if e["type"] == "DROP_HELP")
         self.assertEqual(help_event["payload"], {"source": "me", "drop_id": drop_id})
         self.assertTrue(events.sos_open())
 
@@ -270,6 +283,48 @@ class AlertTests(DropTestCase):
         self.drop()
         self.advance(31)  # tick() only, no frames: e.g. Arduino unplugged
         self.assertEqual(self.d.state, ALERTED)
+
+
+class InstantFallTests(DropTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.d = CaneDropDetector(DropConfig(instant_sos=True), clock=self.clock)
+
+    def test_hard_impact_sends_everything_at_once(self) -> None:
+        self.hold(UPRIGHT, 1)
+        self.d.on_hard_impact()  # no waiting, no further frames
+        self.assertEqual(self.d.state, ALERTED)
+        self.assertTrue(events.sos_open())
+        fall = get_db().list_events()[0]
+        self.assertEqual((fall["type"], fall["payload"]["kind"]), ("CANE_DROP", "fall"))
+        self.assertEqual(fall["payload"]["impact_ts"], fall["payload"]["alert_ts"])
+        sos = get_db().get_event(fall["payload"]["sos_event_id"])
+        self.assertEqual(sos["payload"]["source"], "fall")
+        # the continuous alarm is the last buzzer command (after the SOS beeps)
+        buzzer = [c.args[0] for c in self.send_cmd.call_args_list]
+        self.assertEqual(buzzer[-1], {"cmd": "buzz", "ms": cane_drop.ALARM_MS})
+        self.assertEqual(self.spoken()[-1], cane_drop.FALL_SPOKEN)
+
+    def test_second_impact_does_not_stack(self) -> None:
+        self.d.on_hard_impact()
+        self.d.on_hard_impact()
+        self.assertEqual(self.types().count("SOS"), 1)
+
+    def test_soft_jolt_is_not_an_instant_sos(self) -> None:
+        self.hold(UPRIGHT, 1)
+        self.d.on_impact()  # handling bump: no pinned axis
+        self.assertEqual(self.d.state, WATCHING)
+        self.assertFalse(events.sos_open())
+        self.hold(UPRIGHT, 4)  # stays upright -> just a bump
+        self.assertEqual(self.d.state, IDLE)
+        self.assertEqual(self.types(), [])
+
+    def test_picking_cane_up_does_not_clear_it(self) -> None:
+        self.d.on_hard_impact()
+        self.hold(UPRIGHT, 2)
+        self.assertEqual(self.d.state, ALERTED)
+        self.assertTrue(self.d.respond_ok("touch"))
+        self.assertEqual(self.d.state, IDLE)
 
 
 class ModuleWiringTests(DropTestCase):

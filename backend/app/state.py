@@ -73,6 +73,7 @@ class StateManager:
         self.state = SessionState()
         self._subscribers: Set[asyncio.Queue] = set()
         self._event_handlers: Dict[str, List[Callable[..., None]]] = {}
+        self._frame_handlers: List[Callable[[dict], None]] = []
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -103,9 +104,20 @@ class StateManager:
 
     def _broadcast(self) -> None:
         payload = self.state.to_dict()
+        loop = self._loop
+        try:
+            on_loop = loop is not None and asyncio.get_running_loop() is loop
+        except RuntimeError:  # called from a worker thread (serial, fall, audio...)
+            on_loop = False
         for queue in list(self._subscribers):
             try:
-                queue.put_nowait(payload)
+                if on_loop or loop is None:
+                    queue.put_nowait(payload)
+                else:
+                    # asyncio queues aren't thread-safe: hand the update to the
+                    # event loop so the WebSocket wakes up immediately instead
+                    # of whenever the loop next happens to run.
+                    loop.call_soon_threadsafe(queue.put_nowait, payload)
             except Exception:
                 pass
 
@@ -120,5 +132,20 @@ class StateManager:
             except Exception as exc:
                 print(f"[state] event handler for {name!r} failed: {exc}")
 
+    # --- Raw input frames (~20 Hz) for accelerometer consumers (P3) ---
+    def on_frame(self, handler: Callable[[dict], None]) -> None:
+        self._frame_handlers.append(handler)
+
+    def emit_frame(self, frame: dict) -> None:
+        for handler in self._frame_handlers:
+            try:
+                handler(frame)
+            except Exception as exc:
+                print(f"[state] frame handler failed: {exc}")
+
 
 state_manager = StateManager()
+
+# hooks.py looks for a module-level instance named after the module
+# (app.state.state), so P3 modules can reach on_event/on_frame/update.
+state = state_manager

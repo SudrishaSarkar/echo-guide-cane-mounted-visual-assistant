@@ -19,8 +19,15 @@ def test_describe_top_three_by_size_with_position():
 
 
 def test_describe_focus_only_that_side():
-    assert describer.describe("left", DETS, light=600) == "A person."
-    assert describer.describe("right", DETS, light=600) == "A door."
+    assert describer.describe("left", DETS, light=600) == "A person on the left."
+    assert describer.describe("right", DETS, light=600) == "A door on the right."
+
+
+def test_describe_focus_names_side_once():
+    dets = [det("chair", "left", 0, 0, 60, 120), det("chair", "left", 70, 0, 130, 110),
+            det("couch", "left", 0, 130, 100, 200), det("bottle", "left", 140, 0, 150, 30)]
+    assert describer.describe("left", dets, light=600) == (
+        "Two chairs, a couch and a bottle on the left.")
 
 
 def test_describe_groups_duplicates():
@@ -31,7 +38,9 @@ def test_describe_groups_duplicates():
 def test_describe_empty_and_dark():
     assert describer.describe("all", [], light=600) == "I don't see any objects I recognise."
     assert describer.describe("left", DETS[1:], light=600) == "I don't see anything I recognise on the left."
-    assert describer.describe("all", DETS, light=20) == "Too dark to describe."
+    # Dark only matters when nothing is recognised.
+    assert describer.describe("all", [], light=20) == "Too dark to describe."
+    assert describer.describe("all", DETS, light=20).startswith("A ")
 
 
 def test_describe_unknown_light_still_describes():

@@ -12,6 +12,8 @@ MAX_LINES = 5
 MIN_CONFIDENCE = 0.3
 NO_TEXT = "No readable text — try moving closer."
 
+from .config import settings
+
 _reader = None
 _reader_lock = threading.Lock()
 
@@ -25,6 +27,14 @@ def read_text(frame=None) -> str:
     ocr = _get_reader()
     if ocr is None:
         return "Text reading is not installed."
+    # Shrink big frames first: on a laptop CPU OCR takes ~7 s at 1280 px wide
+    # and ~3 s at 800 px, with the same result for label-sized text.
+    max_w = int(getattr(settings, "ocr_max_width", 800) or 0)
+    shape = getattr(frame, "shape", None)
+    if max_w and shape is not None and shape[1] > max_w:
+        height, width = shape[:2]
+        import cv2
+        frame = cv2.resize(frame, (max_w, int(height * max_w / width)), interpolation=cv2.INTER_AREA)
     with _reader_lock:
         results = ocr.readtext(frame)
     lines = order_lines(results)

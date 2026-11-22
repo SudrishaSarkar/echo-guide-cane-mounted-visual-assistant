@@ -141,6 +141,7 @@ class SerialReader:
             elif ptype == "event":
                 name = payload.get("name")
                 if name:
+                    print(f"[arduino] event {name}", flush=True)
                     state_manager.emit_event(name)
 
     def _handle_input(self, payload: dict) -> None:
@@ -149,6 +150,7 @@ class SerialReader:
         # P1 owns `light`; everything else stays available via latest_input.
         if "light" in payload:
             state_manager.update(light=payload["light"])
+        state_manager.emit_frame(payload)
 
 
 serial_reader = SerialReader()

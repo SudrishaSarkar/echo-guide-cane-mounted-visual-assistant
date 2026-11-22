@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .audio import audio
 from .camera import camera
 from .hazards import hazard_monitor
+from .narrator import narrator
 from .serial_reader import serial_reader
 from .state import Mode, state_manager
 
@@ -35,6 +36,7 @@ _ACTION_TO_EVENT = {
     "FIND_CANE": "find_cane",
     "DROP_OK": "drop_ok",
     "DROP_HELP": "drop_help",
+    "SIMULATE_FALL": "hard_impact",  # test/demo: same event the Uno sends on a hard hit
 }
 
 # Modules owned by P2/P3 that may expose `router = APIRouter()`.
@@ -62,13 +64,39 @@ async def lifespan(app: FastAPI):
     serial_reader.start()
     _try_start_detector()
     hazard_monitor.start()
+    narrator.start()
+    _start_safety_modules()
     yield
+    narrator.stop()
     hazard_monitor.stop()
     if _detector is not None:
         _detector.stop()
     serial_reader.stop()
     camera.release()
     audio.close()
+
+
+def _start_safety_modules() -> None:
+    """Wire P3's safety modules into the live backend: accelerometer frames,
+    impact/clap/loud events, and the sos/drop/find events that controls.py
+    and POST /action emit. (Before this, only tools/p3_dev_server.py did it.)"""
+    from . import activity, cane_drop, care, events, find_cane
+
+    care.register()        # phone location on alerts + demo profile
+    cane_drop.register()   # impact event + frames -> fall check-in
+    activity.register()    # frames -> activity chart / no-movement
+    find_cane.register()   # clap / loud events -> buzzer / log
+
+    routes = {
+        "sos": lambda **_: events.trigger_sos("cane"),
+        "sos_cancel": lambda **_: events.cancel_sos("cane"),
+        "drop_ok": lambda **_: cane_drop.respond_ok("touch"),
+        "drop_help": lambda **_: cane_drop.respond_help("touch"),
+        "find_cane": lambda **_: find_cane.ACTIONS["FIND_CANE"](),
+    }
+    for name, handler in routes.items():
+        state_manager.on_event(name, handler)
+    events.publish()
 
 
 app = FastAPI(title="EchoGuide", lifespan=lifespan)

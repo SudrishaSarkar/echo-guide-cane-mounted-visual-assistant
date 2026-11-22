@@ -35,9 +35,9 @@ TEMPLATES: dict[str, tuple[str, str]] = {
         "{name} asked for help after their cane was dropped ({time}).",
     ),
     "CANE_DROP": (
-        "{name}'s cane may have been dropped",
-        "At {time} the cane hit something, ended up lying still, "
-        "and there was no answer to the check-in.",
+        "{name} may have fallen",
+        "At {time} the cane hit the ground hard (possible fall). "
+        "An SOS has been sent.",
     ),
     "NO_MOVEMENT": (
         "No cane movement for {duration}",

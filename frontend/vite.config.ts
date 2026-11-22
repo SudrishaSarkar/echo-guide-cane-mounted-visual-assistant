@@ -1,7 +1,9 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-const BACKEND = 'http://localhost:8000'
+// 127.0.0.1, not localhost: on Windows "localhost" tries IPv6 first and the
+// backend only listens on IPv4, which adds ~2 s to every new connection.
+const BACKEND = 'http://127.0.0.1:8000'
 
 // https://vite.dev/config/
 export default defineConfig({

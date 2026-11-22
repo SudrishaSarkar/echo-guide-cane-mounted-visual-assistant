@@ -120,86 +120,146 @@ class _TonePlayer:
 
 
 class _Speaker:
-    """pyttsx3 speech on one worker thread; latest message wins."""
+    """Speech on one worker thread. Newest message wins; nothing is queued.
+
+    Two priorities:
+    - say(): important speech (joystick results, SOS, prompts). Cuts off
+      whatever is playing, including narration.
+    - narrate(): background scene narration. Only plays when nothing else is
+      speaking or waiting, and never cuts anything off.
+
+    On Windows this drives SAPI directly. pyttsx3 goes silent after its first
+    runAndWait() on Windows, so it is only the fallback on other systems.
+    """
+
+    _ASYNC, _PURGE = 1, 2
 
     def __init__(self, enabled: bool) -> None:
         self._enabled = enabled
-        self._latest: queue.Queue[str] = queue.Queue(maxsize=1)
-        self._engine = None
-        self._ready = threading.Event()
+        self._pending: Optional[str] = None
+        self._pending_narration = False
+        self._cond = threading.Condition()
+        self._speaking = False
+        self._narrating = False
         if enabled:
             threading.Thread(target=self._run, daemon=True).start()
 
-    def _run(self) -> None:
-        try:
-            import pyttsx3
-
-            self._engine = pyttsx3.init()
-            self._engine.setProperty("rate", 170)
-        except Exception as exc:
-            print(f"[audio] TTS unavailable: {exc}")
-            self._enabled = False
-        self._ready.set()
-        while True:
-            try:
-                item = self._latest.get(timeout=0.5)
-            except queue.Empty:
-                continue
-            if item == "__STOP__":
-                # Warning interrupt: drop pending speech and stop current.
-                while True:
-                    try:
-                        self._latest.get_nowait()
-                    except queue.Empty:
-                        break
-                if self._engine is not None:
-                    try:
-                        self._engine.stop()
-                    except Exception:
-                        pass
-                continue
-            while True:  # drain to latest only
-                try:
-                    nxt = self._latest.get_nowait()
-                    if nxt == "__STOP__":
-                        item = "__STOP__"
-                        break
-                    item = nxt
-                except queue.Empty:
-                    break
-            if item == "__STOP__":
-                if self._engine is not None:
-                    try:
-                        self._engine.stop()
-                    except Exception:
-                        pass
-                continue
-            if self._engine is not None:
-                try:
-                    self._engine.stop()
-                    self._engine.say(item)
-                    self._engine.runAndWait()
-                except Exception:
-                    pass
-
+    # --- public API ---
     def say(self, text: str) -> None:
+        if self._enabled and text:
+            self._push(text, narration=False)
+
+    def narrate(self, text: str) -> bool:
+        """Speak only if idle. Returns True if the text was accepted."""
         if not self._enabled or not text:
-            return
-        self._push(text)
+            return False
+        with self._cond:
+            if self._speaking or self._pending is not None:
+                return False
+        self._push(text, narration=True)
+        return True
+
+    def busy(self) -> bool:
+        with self._cond:
+            return self._speaking or self._pending is not None
+
+    def priority_busy(self) -> bool:
+        """An important message (not narration) is playing or waiting."""
+        with self._cond:
+            playing = self._speaking and not self._narrating
+            waiting = self._pending is not None and not self._pending_narration
+            return playing or waiting
 
     def interrupt(self) -> None:
         if self._enabled:
-            self._push("__STOP__")
+            self._push("", narration=False)
 
-    def _push(self, item: str) -> None:
+    # --- worker ---
+    def _push(self, text: str, narration: bool) -> None:
+        with self._cond:
+            self._pending = text
+            self._pending_narration = narration
+            self._cond.notify()
+
+    def _take(self, timeout: Optional[float]) -> Optional[tuple]:
+        with self._cond:
+            if self._pending is None:
+                self._cond.wait(timeout)
+            if self._pending is None:
+                return None
+            item = (self._pending, self._pending_narration)
+            self._pending = None
+            self._speaking = bool(item[0])
+            self._narrating = item[1]
+            return item
+
+    def _done(self) -> None:
+        with self._cond:
+            self._speaking = False
+            self._narrating = False
+
+    def _run(self) -> None:
+        import sys
+        if sys.platform == "win32":
+            try:
+                self._run_sapi()
+                return
+            except Exception as exc:
+                print(f"[audio] SAPI unavailable ({exc}); falling back to pyttsx3")
+        self._run_pyttsx3()
+
+    def _run_sapi(self) -> None:
+        import comtypes
+        import comtypes.client
+
+        comtypes.CoInitialize()
+        voice = comtypes.client.CreateObject("SAPI.SpVoice")
+        voice.Rate = int(getattr(settings, "speech_rate", 1))
+        item = None
+        while True:
+            if item is None:
+                item = self._take(None)
+                if item is None:
+                    continue
+            text, _ = item
+            item = None
+            # Purge-before-speak: stops anything still playing.
+            voice.Speak(text, self._ASYNC | self._PURGE)
+            if not text:
+                self._done()
+                continue
+            while not voice.WaitUntilDone(50):
+                with self._cond:
+                    newer = self._pending is not None
+                if newer:
+                    break  # newest message wins; it purges this one
+            if newer:
+                item = self._take(0)
+                continue
+            self._done()
+
+    def _run_pyttsx3(self) -> None:
         try:
-            self._latest.get_nowait()  # drop pending, newest wins
-        except queue.Empty:
-            pass
-        try:
-            self._latest.put_nowait(item)
-        except queue.Full:
-            pass
+            import pyttsx3
+        except Exception as exc:
+            print(f"[audio] TTS unavailable: {exc}")
+            self._enabled = False
+            return
+        while True:
+            item = self._take(None)
+            if item is None:
+                continue
+            text, _ = item
+            if text:
+                try:
+                    # A fresh engine per sentence avoids the one-shot bug.
+                    engine = pyttsx3.init()
+                    engine.say(text)
+                    engine.runAndWait()
+                    engine.stop()
+                except Exception as exc:
+                    print(f"[audio] speech failed: {exc}")
+            self._done()
 
 
 class AudioOut:
@@ -208,27 +268,42 @@ class AudioOut:
         self._speaker = _Speaker(settings.tts_enabled)
         self._warn_lock = threading.Lock()
 
-    # --- 3-level urgency beeps ---
-    # urgency 0..1 (from box size/area, ~closeness). Levels:
-    #   L1 <0.35  : single low beep
-    #   L2 0.35-0.7: double beep, mid pitch
-    #   L3 >0.7   : rapid triple beep, high pitch (imminent)
-    def warn(self, side: str, urgency: float) -> None:
-        urgency = max(0.0, min(1.0, urgency))
+    # --- proximity beeps (hazards.py) ---
+    # level 1 = single beep, 2 = double beep, 3 = one slice of the continuous
+    # tone (hazards.py calls it back-to-back). Beeps never interrupt speech.
+    def proximity(self, level: int, side: str) -> float:
+        """Plays one beep group; returns how long it lasts in seconds."""
         pan = {"left": -0.8, "center": 0.0, "right": 0.8}.get(side, 0.0)
-        # Interrupt speech while an alert sounds.
-        self._speaker.interrupt()
         with self._warn_lock:
-            if urgency < 0.35:
-                beeps = [(440.0, 0.09, pan)]
-            elif urgency < 0.7:
-                beeps = [(660.0, 0.09, pan), (660.0, 0.09, pan)]
+            if level == 1:
+                beeps = [(660.0, 0.10, pan)]
+            elif level == 2:
+                beeps = [(770.0, 0.09, pan), (770.0, 0.09, pan)]
+            elif level >= 3:
+                beeps = [(880.0, 0.25, pan)]
             else:
-                beeps = [(880.0, 0.12, pan), (880.0, 0.12, pan), (880.0, 0.12, pan)]
+                return 0.0
             self._tones.play_sequence(beeps)
+        return sum(b[1] for b in beeps) + 0.06 * (len(beeps) - 1)
+
+    def warn(self, side: str, urgency: float) -> None:
+        """Legacy one-shot warning (no speech interrupt)."""
+        urgency = max(0.0, min(1.0, urgency))
+        self.proximity(1 if urgency < 0.35 else 2 if urgency < 0.7 else 3, side)
 
     def say(self, text: str) -> None:
+        """Important speech: cuts off narration and older messages."""
         self._speaker.say(text)
+
+    def narrate(self, text: str) -> bool:
+        """Background narration: only plays when nothing else is speaking."""
+        return self._speaker.narrate(text)
+
+    def speaking(self) -> bool:
+        return self._speaker.busy()
+
+    def priority_speaking(self) -> bool:
+        return self._speaker.priority_busy()
 
     def chime(self, kind: str) -> None:
         self._tones.pattern(kind)
