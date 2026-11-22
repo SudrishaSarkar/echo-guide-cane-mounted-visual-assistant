@@ -1,12 +1,11 @@
-/*
- * controls.h — P2: joystick menu + touch/button events.
- * STUB: minimal no-op so the sketch compiles for P1 hardware testing.
- * P2 replaces this file with real joystick/touch/button handling.
- */
+// EchoGuide controls module (P2): thumb joystick menu, touch sensor, optional push button.
+// See docs/contracts.md sections 1, 6 and 7.
 #pragma once
 
-struct Frame;  // defined in echoguide.ino
+#include <Arduino.h>
+
+struct Frame;
 
 void controlsSetup();
-void controlsUpdate(Frame &f);
-bool controlsCommand(const String &cmd);
+void controlsUpdate(Frame& frame);
+bool controlsCommand(const String& cmd);
