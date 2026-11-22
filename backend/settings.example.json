@@ -24,5 +24,6 @@
     "sandwich", "cake"
   ],
   "audio_sample_rate": 44100,
-  "tts_enabled": true
+  "tts_enabled": true,
+  "audio_output": "laptop"
 }

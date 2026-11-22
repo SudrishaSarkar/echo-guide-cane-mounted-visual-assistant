@@ -58,6 +58,10 @@ class Settings:
     # Audio
     audio_sample_rate: int = 44100
     tts_enabled: bool = True
+    # Where alert tones play: "laptop" (pygame), "buzzer" (Arduino D7 over
+    # serial), or "both". Speech (say) always uses laptop TTS — a buzzer
+    # cannot reproduce voice; a real speaker is future hardware work.
+    audio_output: str = "laptop"
 
     @classmethod
     def load(cls) -> "Settings":

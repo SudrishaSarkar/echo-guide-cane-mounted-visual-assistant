@@ -24,12 +24,14 @@ static int patternIdx = 0;
 static unsigned long stepStart = 0;
 static unsigned long buzzUntil = 0;      // continuous-buzz mode (ms command)
 static bool buzzing = false;
+static int lastFreq = -1;                // freq currently driven on the buzzer
 
 static void stopAll() {
   noTone(PIN_BUZZER);
   activePattern = nullptr;
   buzzing = false;
   buzzUntil = 0;
+  lastFreq = -1;
 }
 
 static void startPattern(const Step *steps, int len) {
@@ -60,17 +62,18 @@ void feedbackUpdate(Frame &f) {
     noTone(PIN_BUZZER);
     buzzing = false;
     buzzUntil = 0;
+    lastFreq = -1;
     return;
   }
 
   if (!activePattern) return;
   const Step &s = activePattern[patternIdx];
   if (now - stepStart < s.dur) {
-    static int lastFreq = -1;
     if (s.freq > 0 && lastFreq != s.freq) { tone(PIN_BUZZER, s.freq); lastFreq = s.freq; }
     return;
   }
   noTone(PIN_BUZZER);
+  lastFreq = -1;   // next step must re-assert tone() even at the same freq
   stepStart = now + s.gap;
   patternIdx++;
   if (patternIdx >= patternLen) {
@@ -124,6 +127,19 @@ bool feedbackCommand(const String &cmd) {
     if (p == "sos")        { startPattern(PAT_SOS, 3);  return true; }
     if (p == "ok")         { startPattern(PAT_OK, 1);   return true; }
     if (p == "error")      { startPattern(PAT_ERROR, 2); return true; }
+    // Parameterized beeps: {"cmd":"beep","freq":880,"count":3,"dur":120,"gap":70}
+    int freq = jsonInt(cmd, "freq", 0);
+    if (freq > 0) {
+      static Step dyn[8];   // one parameterized pattern at a time
+      int count = constrain(jsonInt(cmd, "count", 1), 1, 8);
+      int dur   = constrain(jsonInt(cmd, "dur", 120), 20, 2000);
+      int gap   = constrain(jsonInt(cmd, "gap", 60), 0, 1000);
+      for (int i = 0; i < count; i++) {
+        dyn[i] = { freq, (unsigned long)dur, (unsigned long)gap };
+      }
+      startPattern(dyn, count);
+      return true;
+    }
     return false;
   }
   return false;

@@ -203,10 +203,22 @@ class _Speaker:
 
 
 class AudioOut:
+    # Buzzer is mono: no stereo pan, so direction is encoded as pitch band and
+    # urgency as beep count instead of the laptop's pan+pitch scheme.
+    _BUZZER_SIDE_FREQ = {"left": 620.0, "center": 880.0, "right": 1240.0}
+
     def __init__(self) -> None:
         self._tones = _TonePlayer()
         self._speaker = _Speaker(settings.tts_enabled)
         self._warn_lock = threading.Lock()
+        self._output = settings.audio_output  # "laptop" | "buzzer" | "both"
+
+    def _send_buzzer(self, cmd: dict) -> None:
+        try:
+            from .serial_reader import serial_reader
+            serial_reader.send(cmd)
+        except Exception:
+            pass
 
     # --- 3-level urgency beeps ---
     # urgency 0..1 (from box size/area, ~closeness). Levels:
@@ -219,6 +231,13 @@ class AudioOut:
         # Interrupt speech while an alert sounds.
         self._speaker.interrupt()
         with self._warn_lock:
+            count = 1 if urgency < 0.35 else 2 if urgency < 0.7 else 3
+            if self._output in ("buzzer", "both"):
+                freq = int(self._BUZZER_SIDE_FREQ.get(side, 880.0))
+                self._send_buzzer({"cmd": "beep", "freq": freq,
+                                   "count": count, "dur": 120, "gap": 70})
+            if self._output == "buzzer":
+                return
             if urgency < 0.35:
                 beeps = [(440.0, 0.09, pan)]
             elif urgency < 0.7:
@@ -228,9 +247,15 @@ class AudioOut:
             self._tones.play_sequence(beeps)
 
     def say(self, text: str) -> None:
+        # A buzzer cannot reproduce speech — voice always comes from laptop TTS
+        # until real speaker hardware (e.g. UNO Q audio out / MP3 module) exists.
         self._speaker.say(text)
 
     def chime(self, kind: str) -> None:
+        if self._output in ("buzzer", "both"):
+            self._send_buzzer({"cmd": "beep", "pattern": kind})
+        if self._output == "buzzer":
+            return
         self._tones.pattern(kind)
 
     def close(self) -> None:
