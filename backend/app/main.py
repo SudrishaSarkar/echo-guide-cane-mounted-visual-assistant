@@ -184,3 +184,21 @@ for _mod_name in _OPTIONAL_ROUTE_MODULES:
             app.include_router(_router)
     except ImportError:
         pass
+
+
+# Serve the built dashboard (frontend/dist) from this same port, so a
+# standalone device (Arduino UNO Q) needs no Vite/Node. Registered last so
+# it never shadows the API routes above. Skipped if the build is missing.
+from pathlib import Path as _Path
+
+from fastapi.responses import FileResponse as _FileResponse
+
+_DIST = _Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if (_DIST / "index.html").exists():
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def _dashboard(full_path: str):
+        candidate = (_DIST / full_path).resolve()
+        if full_path and candidate.is_file() and _DIST in candidate.parents:
+            return _FileResponse(candidate)
+        return _FileResponse(_DIST / "index.html")  # SPA routes like /me

@@ -1,0 +1,19 @@
+# Starts the EchoGuide backend (and dashboard on :8000) at boot on the
+# Arduino UNO Q. Install:
+#   sudo cp ~/echoguide/deploy/echoguide.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now echoguide
+# Logs: journalctl -u echoguide -f
+[Unit]
+Description=EchoGuide cane backend
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+User=arduino
+WorkingDirectory=/home/arduino/echoguide/backend
+ExecStart=/home/arduino/echoguide/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

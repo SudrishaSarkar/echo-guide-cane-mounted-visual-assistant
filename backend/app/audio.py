@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import queue
 import threading
+import time
 from typing import Optional
 
 import numpy as np
@@ -206,7 +207,54 @@ class _Speaker:
                 return
             except Exception as exc:
                 print(f"[audio] SAPI unavailable ({exc}); falling back to pyttsx3")
+        else:
+            import shutil
+            exe = shutil.which("espeak-ng") or shutil.which("espeak")
+            if exe:
+                self._run_espeak(exe)
+                return
         self._run_pyttsx3()
+
+    def _run_espeak(self, exe: str) -> None:
+        """Linux (e.g. Arduino UNO Q): one espeak-ng process per sentence,
+        killed when a newer message arrives, so urgent speech never waits."""
+        import subprocess
+
+        # Map the SAPI-style -10..10 rate onto words per minute.
+        wpm = max(80, min(400, 175 + 15 * int(getattr(settings, "speech_rate", 0))))
+        item = None
+        while True:
+            if item is None:
+                item = self._take(None)
+                if item is None:
+                    continue
+            text, _ = item
+            item = None
+            if not text:
+                self._done()
+                continue
+            try:
+                proc = subprocess.Popen(
+                    [exe, "-s", str(wpm), text],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except OSError as exc:
+                print(f"[audio] espeak failed: {exc}")
+                self._done()
+                continue
+            newer = False
+            while proc.poll() is None:
+                with self._cond:
+                    newer = self._pending is not None
+                if newer:
+                    proc.kill()
+                    break
+                time.sleep(0.05)
+            if newer:
+                item = self._take(0)
+                continue
+            self._done()
 
     def _run_sapi(self) -> None:
         import comtypes

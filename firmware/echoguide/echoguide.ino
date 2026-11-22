@@ -14,6 +14,14 @@
 
 #include "frame.h"
 
+// Arduino UNO Q: the sketch runs on the board's microcontroller and
+// "Serial" becomes the RouterBridge Monitor, which the Linux side reads at
+// tcp:127.0.0.1:7500 (backend settings serial_port). Same JSON lines as USB.
+// On a UNO R3 this is skipped and Serial is the normal USB serial port.
+#if defined(ARDUINO_ARCH_ZEPHYR)
+#include <Arduino_RouterBridge.h>
+#endif
+
 // ---------------- Pin map (contract section 6) ----------------
 const int PIN_JOY_X   = A0;
 const int PIN_JOY_Y   = A1;
